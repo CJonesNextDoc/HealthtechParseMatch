@@ -57,6 +57,7 @@ async def log_requests(request: Request, call_next):
 
 @app.get("/health/check")
 async def health_check():
+    logger.info("Checking db connection")
     db_ok = await check_db_connection()
     return {"status": "ok", "db": db_ok}
 

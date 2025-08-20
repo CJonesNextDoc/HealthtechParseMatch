@@ -3,7 +3,7 @@ Request/Response models for create/list operations.
 Use separate schemas for inbound vs outbound (e.g., EmployeeCreate vs EmployeeRead
 """
 from typing import List
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class EmployeeCreate(BaseModel):
@@ -11,8 +11,9 @@ class EmployeeCreate(BaseModel):
     full_name: str
     clearance_level: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(
+        from_attributes=True
+    )
 
 
 class EmployeeUpdate(EmployeeCreate):
@@ -28,8 +29,9 @@ class ProjectCreate(BaseModel):
     title: str
     min_clearance: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(
+        from_attributes=True
+    )
 
 
 class ProjectUpdate(ProjectCreate):
@@ -49,8 +51,9 @@ class AssignmentCreate(BaseModel):
     project_code: str
     role: str 
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(
+        from_attributes=True
+    )
 
 
 class AssignmentUpdate(BaseModel):
