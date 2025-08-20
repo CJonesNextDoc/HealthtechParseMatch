@@ -1,10 +1,10 @@
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.schemas import AssignmentCreate, AssignmentRead
-from app.core.auth import require_role
+from app.core.auth import check_headers, require_role
 from app.db import get_db
 from app.models import Assignment, Employee, Project
 
@@ -20,6 +20,7 @@ async def fetch_assignment(
     db: AsyncSession = Depends(get_db),
     user = Depends(require_role("manager", "admin", "user")),
 ):
+    await check_headers(user)
 
     assignstmt = select(Assignment).filter(Assignment.id == assignment_id)
     assignment_rtn = (await db.execute(assignstmt)).scalar_one_or_none()
@@ -38,6 +39,7 @@ async def fetch_assignment(
 @router.post("/upsert", response_model=AssignmentRead)
 async def create_update_assignment(
     payload: AssignmentCreate,
+    response: Response,
     db: AsyncSession = Depends(get_db),
     user = Depends(require_role("vendor_app")),
 ):
@@ -45,6 +47,8 @@ async def create_update_assignment(
     Updates or Inserts payload values. If there is a match on project_code + emoployee_email
     in Assignments table, it will update the existing record with the role value
     """
+    await check_headers(user)
+
     # get project_id from project code
     projstmt = select(Project).filter(Project.code == payload.project_code)
     project_rtn = (await db.execute(projstmt)).scalar_one_or_none()
@@ -73,6 +77,7 @@ async def create_update_assignment(
         await db.commit()
         await db.refresh(new_assignment)
         logger.info(f"Assignment id: {new_assignment.id} added.")
+        response.status_code = 201
         return new_assignment
     else:
         for key, value in payload.model_dump(exclude_unset=True).items():

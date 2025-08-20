@@ -1,10 +1,10 @@
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.schemas import EmployeeCreate, EmployeeRead, EmployeeUpdate
-from app.core.auth import require_role
+from app.core.auth import check_headers, require_role
 from app.db import get_db
 from app.models import Employee
 
@@ -20,6 +20,8 @@ async def fetch_employee(
     db: AsyncSession = Depends(get_db),
     user = Depends(require_role("vendor_app")),
 ):
+    await check_headers(user)
+
     emplstmt = select(Employee).filter(Employee.id == employee_id)
     employee_rtn = (await db.execute(emplstmt)).scalar_one_or_none()
     
@@ -36,9 +38,12 @@ async def fetch_employee(
 @router.post("/create", response_model=EmployeeRead)
 async def create_employee(
     payload: EmployeeCreate,
+    response: Response,
     db: AsyncSession = Depends(get_db),
     user = Depends(require_role("vendor_app")),
 ):
+    await check_headers(user)
+
     new_employee = Employee(**payload.model_dump())
     emplstmt = select(Employee).filter(Employee.email == payload.email)
     employee_rtn = (await db.execute(emplstmt)).scalar_one_or_none()
@@ -49,6 +54,7 @@ async def create_employee(
         await db.commit()
         await db.refresh(new_employee)
         logger.info(f"Employee email: {payload.email} added.")
+        response.status_code = 201
         return new_employee
     else:
         logger.info(f"Employee email: {payload.email} already exists.")
@@ -61,6 +67,8 @@ async def update_employee(
     db: AsyncSession = Depends(get_db),
     user = Depends(require_role("vendor_app")),
 ):
+    await check_headers(user)
+
     emplstmt = select(Employee).filter(Employee.id == payload.id)
     employee_rtn = (await db.execute(emplstmt)).scalar_one_or_none()
     

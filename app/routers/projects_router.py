@@ -3,11 +3,11 @@
 import logging
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.schemas import ProjectCreate, ProjectRead, ProjectUpdate
-from app.core.auth import require_role
+from app.core.auth import check_headers, require_role
 from app.db import get_db
 from app.models import Assignment, Employee, Project
 
@@ -62,12 +62,7 @@ async def fetch_visible_projects(
     [2] If X-Role == "user", only show projects the caller is assigned to (simulate caller by X-User-Email header, required for user role).
     [3] If X-Role in {"manager","admin"}, show all projects that pass the clearance filter.
     """    
-    if "email" not in user or "role" not in user:
-        ex_msg = "User clearance cannot be checked."
-        logger.exception(ex_msg)
-        raise HTTPException(403, ex_msg)
-    if user["role"] == "user":
-        pass
+    await check_headers(user)
     
     userstmt = select(Employee).filter(Employee.email == user["email"])
     user_rtn = (await db.execute(userstmt)).scalar_one_or_none()
@@ -97,9 +92,14 @@ async def fetch_visible_projects(
 @router.post("/create", response_model=ProjectRead)
 async def create_project(
     payload: ProjectCreate,
+    response: Response,
     db: AsyncSession = Depends(get_db),
     user = Depends(require_role("vendor_app")),
 ):
+    """
+    Endpoints return proper status codes: 201 on create, 200 on reads/lists, 400 on bad headers.
+    """
+    await check_headers(user)
 
     new_project = Project(**payload.model_dump())
     projstmt = select(Project).filter(Project.code == payload.code)
@@ -111,6 +111,7 @@ async def create_project(
         await db.commit()
         await db.refresh(new_project)
         logger.info(f"Project code: {payload.code} added.")
+        response.status_code = 201
         return new_project
     else:
         logger.info(f"Project code: {payload.code} already exists.")
@@ -123,6 +124,8 @@ async def update_project(
     db: AsyncSession = Depends(get_db),
     user = Depends(require_role("vendor_app")),
 ):
+    await check_headers(user)
+
     projstmt = select(Project).filter(Project.id == payload.id)
     project_rtn = (await db.execute(projstmt)).scalar_one_or_none()
     
