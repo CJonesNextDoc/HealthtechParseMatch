@@ -12,6 +12,7 @@ dependencies = [
     "pydantic>=2.9.0",
     "pydantic-settings>=2.4.0",
     "python-dotenv>=1.0.1",
+    "pytest-asyncio",
 ]
 
 [project.optional-dependencies]

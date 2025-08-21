@@ -6,10 +6,12 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.schemas import ProjectCreate, ProjectRead, ProjectUpdate
+from app.schemas.project_schema import ProjectCreate, ProjectRead, ProjectUpdate
 from app.core.auth import check_headers, require_role
-from app.db import get_db
-from app.models import Assignment, Employee, Project
+from app.db.db import get_db
+from app.models.assignment import Assignment
+from app.models.employee import Employee
+from app.models.project import Project
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -21,9 +23,12 @@ router = APIRouter(prefix="/projects", tags=["Projects"])
 async def fetch_project(
     project_id: int,
     db: AsyncSession = Depends(get_db),
-    user = Depends(require_role("manager")),
+    user = Depends(require_role("admin", "manager", "user")),
 ):
-   
+    """
+    admin role can see all. manager role can only see to their clearance level
+    user role cannot see via this function
+    """
     if "email" not in user:
         ex_msg = "User clearance cannot be checked."
         logger.exception(ex_msg)
@@ -32,7 +37,21 @@ async def fetch_project(
     userstmt = select(Employee).filter(Employee.email == user["email"])
     user_rtn = (await db.execute(userstmt)).scalar_one_or_none()
 
-    projstmt = select(Project).filter(and_(Project.id == project_id, Project.min_clearance >= user_rtn.clearance_level))
+    if user["role"] == "admin":
+        projstmt = select(Project).filter(Project.id == project_id)
+    elif user["role"] == "manager":
+        projstmt = select(Project).filter(and_(Project.id == project_id, Project.min_clearance <= user_rtn.clearance_level))
+    else:
+        # role is "user", only returns those he is assigned to
+        projstmt = select(Project).join(
+            Assignment, and_(Assignment.project_id == Project.id, Assignment.employee_id == user_rtn.id)
+        ).filter(
+            and_(
+                Project.id == project_id,
+                Project.min_clearance <= user_rtn.clearance_level,
+            )
+        )
+
     project_rtn = (await db.execute(projstmt)).scalar_one_or_none()
     
     if project_rtn is not None:
@@ -70,7 +89,11 @@ async def fetch_visible_projects(
 
     if user["role"] == "user":
         logger.info(f"Only showing projects that user email: {user['email']} is assigned to.")
-        projstmt = select(Project).join(Assignment, Assignment.project_id == Project.id).where(Assignment.employee_id == user_rtn.id).order_by(Project.code).limit(list_limit)
+        projstmt = select(Project).join(
+            Assignment, Assignment.project_id == Project.id
+        ).where(
+            Assignment.employee_id == user_rtn.id
+        ).order_by(Project.code).limit(list_limit)
     else:
         logger.info(f"Only showing projects that are equal or less than: {user['email']} meets clearance requirements for.")
         projstmt = select(Project).filter(Project.min_clearance <= user_rtn.clearance_level).order_by(Project.code).limit(list_limit)

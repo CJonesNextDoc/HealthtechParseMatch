@@ -1,4 +1,4 @@
-# app/db_manage.py
+# app/db/db_manage.py
 import asyncpg
 from urllib.parse import urlparse, urlunparse
 from app.config import settings

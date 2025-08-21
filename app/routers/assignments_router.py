@@ -3,10 +3,12 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.schemas import AssignmentCreate, AssignmentRead
+from app.schemas.assignment_schema import AssignmentCreate, AssignmentRead
 from app.core.auth import check_headers, require_role
-from app.db import get_db
-from app.models import Assignment, Employee, Project
+from app.db.db import get_db
+from app.models.assignment import Assignment
+from app.models.employee import Employee
+from app.models.project import Project
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

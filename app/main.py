@@ -3,8 +3,8 @@ import logging
 from time import perf_counter
 from fastapi.concurrency import asynccontextmanager
 
-from app.db import check_db_connection, create_all
-from app.db_manage import ensure_database
+from app.db.db import check_db_connection, create_all, dispose_engine
+from app.db.db_manage import ensure_database
 from app.routers import employees_router, projects_router, assignments_router
 
 logging.basicConfig(level=logging.INFO)
@@ -21,7 +21,8 @@ async def init_startup():
 
 
 async def shutdown() -> None:
-    logger.info("Shutdown hook called — no resources to release yet.")
+    logger.info("Shutdown hook called — release engine.")
+    await dispose_engine()
 
 
 @asynccontextmanager
