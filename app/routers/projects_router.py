@@ -27,7 +27,7 @@ async def get_user_by_email(user, db):
     userstmt = select(Employee).filter(Employee.email == user["email"])
     user_rtn = (await db.execute(userstmt)).scalar_one_or_none()
     if user_rtn is None:
-        er_msg = "Unable to match user with email."
+        er_msg = f"Unable to match user with email {user['email']}."
         logger.error(er_msg)
         raise HTTPException(404, er_msg)
     return user_rtn

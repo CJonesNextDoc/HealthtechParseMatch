@@ -7,7 +7,6 @@ user with sufficient clearance and assigned (sees those)
 manager with sufficient clearance (sees all permitted)
 admin with high clearance (sees all)
 """
-
 import pytest
 
 @pytest.mark.asyncio
@@ -16,6 +15,7 @@ async def test_projects_get(client, manager_headers):
     assert resp.status_code == 200
     data = resp.json()
     assert data["id"] == 1
+    assert data["code"] == "PRJ-RED"
 
 @pytest.mark.asyncio
 async def test_projects_get_low_clearance(client, manager_headers_low_clearance):
@@ -30,7 +30,7 @@ async def test_projects_get_admin(client, admin_headers):
     assert resp.status_code == 200
     data = resp.json()
     assert "id" in data
-    assert data["id"] >= 1
+    assert data["code"] == "PRJ-RED"
 
 @pytest.mark.asyncio
 async def test_projects_get_user(client, user_headers_low_clearance):
@@ -42,7 +42,6 @@ async def test_projects_get_user(client, user_headers_low_clearance):
 
 @pytest.mark.asyncio
 async def test_projects_get_list_visible_none(client, user_headers_low_clearance):
-    # Method 1: Using params argument (recommended)
     resp = await client.get(
         "/projects/visible",
         params={"limit": 10, "offset": 0},
@@ -53,5 +52,12 @@ async def test_projects_get_list_visible_none(client, user_headers_low_clearance
 
 @pytest.mark.asyncio
 async def test_projects_get_list_visible(client, user_headers_mid_clearance):
-    resp = await client.get("/projects/visible?limit=5&offset=0", headers=user_headers_mid_clearance)
+    resp = await client.get(
+        "/projects/visible",
+        params={"limit": 5, "offset": 0},
+        headers=user_headers_mid_clearance
+    )
     assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) > 0
+    assert any(p["code"] == "PRJ-BLUE" for p in data)

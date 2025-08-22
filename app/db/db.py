@@ -4,6 +4,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 from app.config import settings
+from typing import AsyncGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -39,17 +40,17 @@ def _ensure_sessionmaker():
     return _SessionLocal
 
 
-async def get_db():
-    SessionLocal = _ensure_sessionmaker()
-    session = SessionLocal()
-    try:
-        yield session
-        await session.commit()
-    except Exception:
-        await session.rollback()
-        raise
-    finally:
-        await session.close()
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    """Get database session based on environment"""
+    if settings.testing:
+        from app.db.test_db import TestingSessionLocal
+        async with TestingSessionLocal() as session:
+            yield session
+    else:
+        # Use local _SessionLocal instead of importing
+        sessionmaker = _ensure_sessionmaker()
+        async with sessionmaker() as session:
+            yield session
 
 
 async def check_db_connection():

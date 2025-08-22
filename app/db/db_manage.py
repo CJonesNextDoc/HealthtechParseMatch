@@ -1,30 +1,25 @@
 # app/db/db_manage.py
 import asyncpg
-from urllib.parse import urlparse, urlunparse
+import logging
 from app.config import settings
 
+logger = logging.getLogger(__name__)
+
 async def ensure_database():
-    """
-    Connects to the default 'postgres' DB and creates the target DB if missing.
-    """
-    url = settings.database_url
-    # asyncpg can't parse the +asyncpg driver suffix, so strip it
-    parsed = urlparse(url.replace("+asyncpg", ""))
-    db_name = parsed.path.lstrip("/") or "postgres"
+    """Initialize database connection"""
+    if settings.testing:
+        # Skip PostgreSQL checks in test mode
+        logger.info("Using SQLite for testing")
+        return True
 
-    base = parsed._replace(path="/postgres")
-    base_url = urlunparse(base)
-
-    conn = await asyncpg.connect(base_url)
-    exists = False
     try:
-        exists = await conn.fetchval(
-            "SELECT 1 FROM pg_database WHERE datname=$1", db_name
-        )
-        if not exists:
-            await conn.execute(f'CREATE DATABASE "{db_name}"')
-            exists = True
-    finally:
+        # Parse the database URL
+        base_url = settings.database_url
+        logger.info("Checking database connection...")
+        conn = await asyncpg.connect(base_url)
         await conn.close()
-
-    return exists
+        logger.info("Database connection successful")
+        return True
+    except Exception as e:
+        logger.error(f"Database connection failed: {e}")
+        return False

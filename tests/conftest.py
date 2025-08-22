@@ -1,8 +1,9 @@
 # tests/conftest.py
 import os
 
-# 0) Make sure tests run with TESTING=1 before anything imports app.config/settings
+# Set environment variables before importing app
 os.environ.setdefault("TESTING", "1")
+os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///./test.db")
 
 import sys
 import asyncio
@@ -10,6 +11,7 @@ import logging
 import pytest
 from httpx import ASGITransport, AsyncClient
 from asgi_lifespan import LifespanManager
+from sqlalchemy import text
 from app.main import app
 
 # 1) Windows: force Selector loop (asyncpg + Proactor)
@@ -33,15 +35,18 @@ def _configure_log_cli():
 # 4) Create tables once, dispose engine once
 @pytest.fixture(scope="session", autouse=True)
 async def _db_schema_and_cleanup():
-    from tests.test_config import test_engine
+    """Create and clean up test database"""
+    from app.db.test_db import test_engine
     from app.models.modelbase import Base
     
+    # Drop and recreate all tables
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
     
     yield
     
+    # Cleanup
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
     await test_engine.dispose()
@@ -68,12 +73,117 @@ def admin_headers():
 
 @pytest.fixture
 def manager_headers_low_clearance():
-    return {"X-Role": "manager", "X-User-Email": "tom.smith@emaildomain.com"}
+    return {"X-Role": "manager", "X-User-Email": "john.doe@example.com"}
 
 @pytest.fixture
 def user_headers_low_clearance():
-    return {"X-Role": "user", "X-User-Email": "tom.smith8672121@emaildomain.com"}
+    return {"X-Role": "user", "X-User-Email": "john.doe@example.com"}
 
 @pytest.fixture
 def user_headers_mid_clearance():
-    return {"X-Role": "user", "X-User-Email": "tom.smith3972274@emaildomain.com"}
+    return {"X-Role": "user", "X-User-Email": "tom.smith@example.com"}
+
+@pytest.fixture(autouse=True)
+async def setup_test_data():
+    """Create initial test data"""
+    from app.models.employee import Employee
+    from app.db.test_db import TestingSessionLocal
+    from sqlalchemy import text
+    
+    async with TestingSessionLocal() as session:
+        # Clear any existing data
+        await session.execute(text("DELETE FROM employee"))
+        
+        # Create initial employee record
+        employee = Employee(
+            email="curtisjonesknox@gmail.com",
+            full_name="Curtis Jones",
+            clearance_level=5
+        )
+        session.add(employee)
+        
+        # Create initial employee record
+        employee2 = Employee(
+            email="tom.smith@example.com",
+            full_name="Tom Smith",
+            clearance_level=3
+        )
+        session.add(employee2)
+        
+        # Create initial employee record
+        employee3 = Employee(
+            email="john.doe@example.com",
+            full_name="John Doe",
+            clearance_level=1
+        )
+        session.add(employee3)
+
+        await session.commit()
+    
+    yield
+
+
+@pytest.fixture(autouse=True)
+async def setup_project_test_data():
+    """Create initial project test data"""
+    from app.models.project import Project
+    from app.db.test_db import TestingSessionLocal
+    
+    async with TestingSessionLocal() as session:
+        # Clear existing data
+        await session.execute(text("DELETE FROM project"))
+        await session.commit()
+        
+        # Create initial projects with explicit IDs for testing
+        projects = [
+            Project(
+                id=1,  # Explicit ID for first record
+                code="PRJ-RED",
+                title="Red Hawk",
+                min_clearance=3
+            ),
+            Project(
+                id=2,  # Explicit ID for second record
+                code="PRJ-BLUE",
+                title="Blue Heron",
+                min_clearance=1
+            )
+        ]
+        for project in projects:
+            session.add(project)
+        await session.commit()
+    
+    yield
+
+@pytest.fixture(autouse=True)
+async def setup_assignment_test_data():
+    """Create initial assignment test data"""
+    from app.models.assignment import Assignment
+    from app.db.test_db import TestingSessionLocal
+    from sqlalchemy import text
+
+    async with TestingSessionLocal() as session:
+        # Clear existing assignments
+        await session.execute(text("DELETE FROM assignment"))
+        await session.commit()
+
+        # Create initial assignments
+        assignments = [
+            Assignment(
+                id=1,
+                employee_id=1,
+                project_id=1,
+                role="lead"
+            ),
+            Assignment(
+                id=2,
+                employee_id=2,
+                project_id=2,
+                role="member"
+            )
+        ]
+        for assignment in assignments:
+            session.add(assignment)
+        await session.commit()
+
+    yield
