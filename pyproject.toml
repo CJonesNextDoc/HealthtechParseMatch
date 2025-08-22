@@ -14,7 +14,9 @@ dependencies = [
     "python-dotenv>=1.0.1",
     "pytest-asyncio",
     "pydantic[email]",
+    "asgi-lifespan>=1.0.0",
 ]
+
 
 [project.optional-dependencies]
 dev = [
