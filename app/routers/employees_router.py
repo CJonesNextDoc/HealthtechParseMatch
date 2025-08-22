@@ -14,7 +14,16 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/employees", tags=["Employees"])
 
 
-@router.get("/{employee_id}", response_model=EmployeeRead)
+@router.get(
+    "/{employee_id}",
+    summary="Fetch an employee",
+    description="Returns a single employee record by id.",
+    response_model=EmployeeRead,
+    responses={
+        404: {"description": "Employee not found"},
+        403: {"description": "Forbidden: Role not authorized."},  # Raised by require_role
+    },
+)
 async def fetch_employee(
     employee_id: int,
     response: Response,
@@ -32,12 +41,22 @@ async def fetch_employee(
         logger.info(f"Employee id: {employee_id} found.")
         return employee_rtn
     else:
-        ex_msg = f"Employee id: {employee_id} NOT found."
-        logger.exception(ex_msg)
-        raise HTTPException(404, ex_msg)
+        er_msg = f"Employee id: {employee_id} NOT found."
+        logger.error(er_msg)
+        raise HTTPException(404, er_msg)
 
 
-@router.post("/create", response_model=EmployeeRead)
+@router.post(
+    "/create",
+    summary="Create an employee",
+    description="""
+    Create a single employee record by unique email address.
+    If email address is found, that record id is returned but no fields are updated.""",
+    response_model=EmployeeRead,
+    responses={
+        403: {"description": "Forbidden: Role not authorized."},  # Raised by require_role
+    },
+)
 async def create_employee(
     payload: EmployeeCreate,
     response: Response,
@@ -55,15 +74,24 @@ async def create_employee(
         db.add(new_employee)
         await db.commit()
         await db.refresh(new_employee)
-        logger.info(f"Employee email: {payload.email} added.")
+        logger.info("Employee email added.")
         response.status_code = status.HTTP_201_CREATED
         return new_employee
     else:
-        logger.info(f"Employee email: {payload.email} already exists.")
+        logger.info("Employee email already exists.")
         return employee_rtn
 
 
-@router.post("/update", response_model=EmployeeRead)
+@router.post(
+    "/update",
+    summary="Update an employee record",
+    description="""Update a single employee record by employee record id.""",
+    response_model=EmployeeRead,
+    responses={
+        403: {"description": "Forbidden: Role not authorized."},  # Raised by require_role
+        404: {"description": "Employee id not found."},
+    },
+)
 async def update_employee(
     payload: EmployeeUpdate,
     response: Response,
@@ -85,6 +113,6 @@ async def update_employee(
         logger.info(f"Employee ID: {payload.id} updated.")
         return employee_rtn
     else:
-        ex_msg = f"Employee Id: {payload.id} not found."
-        logger.exception(ex_msg)
-        raise HTTPException(404, ex_msg)
+        er_msg = f"Employee Id: {payload.id} not found."
+        logger.error(er_msg)
+        raise HTTPException(404, er_msg)

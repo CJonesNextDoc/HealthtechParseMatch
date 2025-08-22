@@ -39,14 +39,19 @@ async def test_projects_get_user(client, user_headers_low_clearance):
     data = resp.json()
     assert "id" not in data
 
+
 @pytest.mark.asyncio
 async def test_projects_get_list_visible_none(client, user_headers_low_clearance):
-    resp = await client.get("/projects/visible/5", headers=user_headers_low_clearance)
+    # Method 1: Using params argument (recommended)
+    resp = await client.get(
+        "/projects/visible",
+        params={"limit": 10, "offset": 0},
+        headers=user_headers_low_clearance
+    )
     assert resp.status_code == 404
+
 
 @pytest.mark.asyncio
 async def test_projects_get_list_visible(client, user_headers_mid_clearance):
-    resp = await client.get("/projects/visible/5", headers=user_headers_mid_clearance)
+    resp = await client.get("/projects/visible?limit=5&offset=0", headers=user_headers_mid_clearance)
     assert resp.status_code == 200
-
-

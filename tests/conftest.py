@@ -33,10 +33,18 @@ def _configure_log_cli():
 # 4) Create tables once, dispose engine once
 @pytest.fixture(scope="session", autouse=True)
 async def _db_schema_and_cleanup():
-    from app.db.db import create_all, dispose_engine
-    await create_all()   # engine will be built with NullPool now
+    from tests.test_config import test_engine
+    from app.models.modelbase import Base
+    
+    async with test_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.create_all)
+    
     yield
-    await dispose_engine()
+    
+    async with test_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+    await test_engine.dispose()
 
 @pytest.fixture
 async def client():

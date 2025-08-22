@@ -16,7 +16,12 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/assignments", tags=["Assignments"])
 
 
-@router.get("/{assignment_id}", response_model=AssignmentRead)
+@router.get(
+    "/{assignment_id}",
+    summary="Fetch an assignment record",
+    description="""Fetch a single assignment record by assignment record id.""",
+     response_model=AssignmentRead
+)
 async def fetch_assignment(
     assignment_id: int,
     db: AsyncSession = Depends(get_db),
@@ -30,23 +35,29 @@ async def fetch_assignment(
     if assignment_rtn is not None:
         # This ensures the employee email is unique
         logger.info(f"Assignment id: {assignment_id} found.")
-        logger.info(f"user: {user}")
         return assignment_rtn
     else:
-        ex_msg = f"Assignment id: {assignment_id} NOT found."
-        logger.exception(ex_msg)
-        raise HTTPException(404, ex_msg)
+        er_msg = f"Assignment id: {assignment_id} NOT found."
+        logger.error(er_msg)
+        raise HTTPException(404, er_msg)
 
 
-@router.post("/upsert", response_model=AssignmentRead)
+@router.post(
+    "/upsert",
+    summary="Insert or update an assignment record",
+    description="""Insert or update a single assignment record by searching for a matching
+    project_code + employee_email assignment record. If a match is found, update with values
+    in the payload. If no match found, insert the record.""",
+    response_model=AssignmentRead
+)
 async def create_update_assignment(
     payload: AssignmentCreate,
     response: Response,
     db: AsyncSession = Depends(get_db),
-    user = Depends(require_role("vendor_app")),
+    user = Depends(require_role("admin")),
 ):
     """
-    Updates or Inserts payload values. If there is a match on project_code + emoployee_email
+    Updates or Inserts payload values. If there is a match on project_code + employee_email
     in Assignments table, it will update the existing record with the role value
     """
     await check_headers(user)
@@ -60,14 +71,14 @@ async def create_update_assignment(
     employee_rtn = (await db.execute(emplstmt)).scalar_one_or_none()
 
     if project_rtn is None:
-        ex_msg = "Unable to find project"
-        logger.exception(ex_msg)
-        raise HTTPException(404, ex_msg)
+        er_msg = "Unable to find project by supplied code."
+        logger.error(er_msg)
+        raise HTTPException(404, er_msg)
 
     if  employee_rtn is None:
-        ex_msg = "Unable to find employee"
-        logger.exception(ex_msg)
-        raise HTTPException(404, ex_msg)
+        er_msg = "Unable to find employee by supplied email."
+        logger.error(er_msg)
+        raise HTTPException(404, er_msg)
 
     assignstmt = select(Assignment).filter(and_(Assignment.project_id == project_rtn.id, Assignment.employee_id == employee_rtn.id))
     assignment_rtn = (await db.execute(assignstmt)).scalar_one_or_none()
@@ -83,9 +94,13 @@ async def create_update_assignment(
         return new_assignment
     else:
         for key, value in payload.model_dump(exclude_unset=True).items():
+            # payload model may have fields from related tables, ignore these
+            # on the setattr below. Only want to set those attributes that
+            # exist in the assignment table model.
             if key in assignment_rtn.__dict__:
                 setattr(assignment_rtn, key, value)
 
+        # db.add in this case has the record id in assignment_rtn, so an update not an insert occurs
         db.add(assignment_rtn)
         await db.commit()
         await db.refresh(assignment_rtn)

@@ -13,6 +13,7 @@ dependencies = [
     "pydantic-settings>=2.4.0",
     "python-dotenv>=1.0.1",
     "pytest-asyncio",
+    "pydantic[email]",
 ]
 
 [project.optional-dependencies]
@@ -24,6 +25,7 @@ dev = [
     "ruff>=0.6.0",
     "black>=24.4.2",
     "pre-commit>=3.8.0",
+    "aiosqlite",
 ]
 
 [tool.pytest.ini_options]
