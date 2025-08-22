@@ -2,6 +2,7 @@
 import asyncpg
 import logging
 from app.config import settings
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
@@ -13,8 +14,14 @@ async def ensure_database():
         return True
 
     try:
-        # Parse the database URL
-        base_url = settings.database_url
+        # Parse the database URL to remove SQLAlchemy-specific parts
+        parsed = urlparse(settings.database_url)
+        if parsed.scheme.startswith('postgresql+'):
+            # Convert postgresql+asyncpg:// to postgresql://
+            base_url = settings.database_url.replace('postgresql+asyncpg://', 'postgresql://')
+        else:
+            base_url = settings.database_url
+
         logger.info("Checking database connection...")
         conn = await asyncpg.connect(base_url)
         await conn.close()
