@@ -8,6 +8,7 @@ jobs:
     env:
       DATABASE_URL: "sqlite+aiosqlite:///./test.db"
       TESTING: "1"
+      SQLALCHEMY_ECHO: "false"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

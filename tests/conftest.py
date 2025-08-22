@@ -1,14 +1,16 @@
 # tests/conftest.py
 import os
-
-# Set environment variables before importing app
-os.environ.setdefault("TESTING", "1")
-os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///./test.db")
-
 import sys
-import asyncio
-import logging
 import pytest
+import logging
+import asyncio
+
+# Set test environment variables BEFORE any app imports
+os.environ["TESTING"] = "1"
+os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./test.db"
+os.environ["SQLALCHEMY_ECHO"] = "false"
+
+# Now we can safely import app components
 from httpx import ASGITransport, AsyncClient
 from asgi_lifespan import LifespanManager
 from sqlalchemy import text
