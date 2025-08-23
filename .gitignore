@@ -15,3 +15,7 @@ test.db
 build/
 dist/
 *.egg
+
+# Log files
+logs/
+*.log

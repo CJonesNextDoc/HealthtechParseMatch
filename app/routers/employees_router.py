@@ -1,5 +1,3 @@
-import logging
-
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,9 +5,9 @@ from app.schemas.employee_schema import EmployeeCreate, EmployeeRead, EmployeeUp
 from app.core.auth import check_headers, require_role
 from app.db.db import get_db
 from app.models.employee import Employee
+from app.utils.logger import get_logger
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/employees", tags=["Employees"])
 
@@ -30,20 +28,26 @@ async def fetch_employee(
     db: AsyncSession = Depends(get_db),
     user = Depends(require_role("admin", "manager", "user")),
 ):
+    logger.info("Fetching employee", extra={"employee_id": employee_id, "action": "fetch"})
     await check_headers(user)
 
     emplstmt = select(Employee).filter(Employee.id == employee_id)
     employee_rtn = (await db.execute(emplstmt)).scalar_one_or_none()
     
     if employee_rtn is not None:
-        # This ensures the employee email is unique
         response.status_code = status.HTTP_200_OK
-        logger.info(f"Employee id: {employee_id} found.")
+        logger.info("Employee found", extra={
+            "employee_id": employee_id,
+            "email": employee_rtn.email,
+            "action": "fetch_success"
+        })
         return employee_rtn
-    else:
-        er_msg = f"Employee id: {employee_id} NOT found."
-        logger.error(er_msg)
-        raise HTTPException(404, er_msg)
+
+    logger.error("Employee not found", extra={
+        "employee_id": employee_id,
+        "action": "fetch_failed"
+    })
+    raise HTTPException(404, f"Employee {employee_id} not found")
 
 
 @router.post(
@@ -63,23 +67,35 @@ async def create_employee(
     db: AsyncSession = Depends(get_db),
     user = Depends(require_role("admin", "manager")),
 ):
+    logger.info("Creating employee", extra={
+        "email": payload.email,
+        "action": "create"
+    })
     await check_headers(user)
 
-    new_employee = Employee(**payload.model_dump())
     emplstmt = select(Employee).filter(Employee.email == payload.email)
     employee_rtn = (await db.execute(emplstmt)).scalar_one_or_none()
     
     if employee_rtn is None:
-        # This ensures the employee email is unique
+        new_employee = Employee(**payload.model_dump())
         db.add(new_employee)
         await db.commit()
         await db.refresh(new_employee)
-        logger.info("Employee email added.")
+        
+        logger.info("Employee created", extra={
+            "employee_id": new_employee.id,
+            "email": new_employee.email,
+            "action": "create_success"
+        })
         response.status_code = status.HTTP_201_CREATED
         return new_employee
-    else:
-        logger.info("Employee email already exists.")
-        return employee_rtn
+
+    logger.info("Employee exists", extra={
+        "employee_id": employee_rtn.id,
+        "email": employee_rtn.email,
+        "action": "create_skipped"
+    })
+    return employee_rtn
 
 
 @router.post(
@@ -98,6 +114,10 @@ async def update_employee(
     db: AsyncSession = Depends(get_db),
     user = Depends(require_role("admin", "manager", "user")),
 ):
+    logger.info("Updating employee", extra={
+        "employee_id": payload.id,
+        "action": "update"
+    })
     await check_headers(user)
 
     emplstmt = select(Employee).filter(Employee.id == payload.id)
@@ -109,10 +129,17 @@ async def update_employee(
         db.add(employee_rtn)
         await db.commit()
         await db.refresh(employee_rtn)
+        
+        logger.info("Employee updated", extra={
+            "employee_id": payload.id,
+            "email": employee_rtn.email,
+            "action": "update_success"
+        })
         response.status_code = status.HTTP_200_OK
-        logger.info(f"Employee ID: {payload.id} updated.")
         return employee_rtn
-    else:
-        er_msg = f"Employee Id: {payload.id} not found."
-        logger.error(er_msg)
-        raise HTTPException(404, er_msg)
+
+    logger.error("Employee not found", extra={
+        "employee_id": payload.id,
+        "action": "update_failed"
+    })
+    raise HTTPException(404, f"Employee {payload.id} not found")

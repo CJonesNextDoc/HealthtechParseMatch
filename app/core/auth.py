@@ -1,10 +1,9 @@
 # app/core/auth.py
 from typing import Literal, Optional, TypedDict
 from fastapi import Header, HTTPException, status
-import logging
+from logging import getLogger
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = getLogger(__name__)
 
 class Caller(TypedDict, total=False):
     role: Literal["admin", "manager", "user", "vendor_app"]

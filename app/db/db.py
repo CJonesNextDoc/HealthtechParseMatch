@@ -1,12 +1,12 @@
 # app/db/db.py
-import logging
+from logging import getLogger
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 from app.config import settings
 from typing import AsyncGenerator
 
-logger = logging.getLogger(__name__)
+logger = getLogger(__name__)
 
 _engine = None
 _SessionLocal = None

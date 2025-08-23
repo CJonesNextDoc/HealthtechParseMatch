@@ -1,13 +1,18 @@
-from fastapi import APIRouter, FastAPI, Request, Response
-import logging
+import uuid
+from fastapi import APIRouter, FastAPI, Request
 from time import perf_counter
+from typing import Callable
+import logging
 from fastapi.concurrency import asynccontextmanager
 
 from app.db.db import check_db_connection, create_all, dispose_engine
 from app.db.db_manage import ensure_database
 from app.routers import employees_router, projects_router, assignments_router
+from app.utils.logging_config import setup_logging
+from app.core.context import request_id_ctx_var
 
-logging.basicConfig(level=logging.INFO)
+# Configure logging
+setup_logging(log_level="INFO")
 logger = logging.getLogger(__name__)
 
 
@@ -39,21 +44,42 @@ router = APIRouter(tags=["FastAPI Demo"])
 
 
 @app.middleware("http")
-async def log_requests(request: Request, call_next):
-    path = request.url.path
-    start = perf_counter()
-    client = request.client.host if request.client else "-"
+async def log_requests(request: Request, call_next: Callable):
+    request_id = str(uuid.uuid4())
+    token = request_id_ctx_var.set(request_id)
+    
+    log_context = {
+        "request_id": request_id,
+        "method": request.method,
+        "path": request.url.path,
+        "client_host": request.client.host if request.client else "-",
+        "query_params": str(request.query_params)
+    }
+
     try:
-        response: Response = await call_next(request)
-        status = response.status_code
+        logger.info("Request started", extra=log_context)  # Changed extras to extra
+        start_time = perf_counter()
+        
+        response = await call_next(request)
+        
+        log_context.update({
+            "status_code": response.status_code,
+            "duration_ms": f"{(perf_counter() - start_time) * 1000:.2f}"
+        })
+        logger.info("Request completed", extra=log_context)  # Changed extras to extra
+        
+        response.headers["X-Request-ID"] = request_id
         return response
+
     except Exception as exc:
-        status = 500
-        logger.exception(f"Unhandled error on {request.method} {path} from {client}. Exception: {exc}")
+        log_context.update({
+            "error": str(exc),
+            "error_type": exc.__class__.__name__
+        })
+        logger.exception("Request failed", extra=log_context)  # Changed extras to extra
         raise
     finally:
-        elapsed_ms = (perf_counter() - start) * 1000.0
-        logger.info(f"{client} {request.method} {path} -> {status} {elapsed_ms}ms")
+        request_id_ctx_var.reset(token)
 
 
 @app.get("/health/check")

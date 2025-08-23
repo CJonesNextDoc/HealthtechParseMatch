@@ -4,6 +4,7 @@ import sys
 import pytest
 import logging
 import asyncio
+from pathlib import Path
 
 # Set test environment variables BEFORE any app imports
 os.environ["TESTING"] = "1"
@@ -15,6 +16,7 @@ from httpx import ASGITransport, AsyncClient
 from asgi_lifespan import LifespanManager
 from sqlalchemy import text
 from app.main import app
+from app.utils.logging_config import setup_logging
 
 # 1) Windows: force Selector loop (asyncpg + Proactor)
 if sys.platform.startswith("win"):
@@ -40,7 +42,7 @@ async def _db_schema_and_cleanup():
     """Create and clean up test database"""
     from app.db.test_db import test_engine
     from app.models.modelbase import Base
-    
+
     # Drop and recreate all tables
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
@@ -188,4 +190,20 @@ async def setup_assignment_test_data():
             session.add(assignment)
         await session.commit()
 
+    yield
+
+@pytest.fixture(autouse=True)
+def setup_test_logging():
+    """Configure separate logging for tests"""
+    log_dir = Path(__file__).parent.parent / "logs"
+    log_dir.mkdir(exist_ok=True)
+    
+    # Set up test-specific logging
+    setup_logging(
+        log_level="DEBUG",
+        log_file=log_dir / "test.log",
+        max_size_mb=5,
+        backup_count=2
+    )
+    
     yield

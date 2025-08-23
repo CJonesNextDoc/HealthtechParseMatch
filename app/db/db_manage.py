@@ -1,10 +1,11 @@
 # app/db/db_manage.py
 import asyncpg
-import logging
 from app.config import settings
 from urllib.parse import urlparse
+from logging import getLogger
 
-logger = logging.getLogger(__name__)
+logger = getLogger(__name__)
+
 
 async def ensure_database():
     """Initialize database connection"""

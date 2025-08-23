@@ -2,7 +2,6 @@
 app/routers/projects_router.py
 Endpoints dealing primarily with search, create, and update for now.
 """
-import logging
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
@@ -14,22 +13,23 @@ from app.db.db import get_db
 from app.models.assignment import Assignment
 from app.models.employee import Employee
 from app.models.project import Project
+from app.utils.logger import get_logger
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/projects", tags=["Projects"])
 
 
 async def get_user_by_email(user, db):
-    """Helper function to fetch user by email from the database.
-    Raises HTTPException if user is not found"""
+    """Helper function to fetch user by email from the database."""
     userstmt = select(Employee).filter(Employee.email == user["email"])
     user_rtn = (await db.execute(userstmt)).scalar_one_or_none()
     if user_rtn is None:
-        er_msg = f"Unable to match user with email {user['email']}."
-        logger.error(er_msg)
-        raise HTTPException(404, er_msg)
+        logger.error("User not found", extra={
+            "email": user["email"],
+            "action": "user_lookup_failed"
+        })
+        raise HTTPException(404, f"Unable to match user with email {user['email']}.")
     return user_rtn
 
 
@@ -47,22 +47,19 @@ async def fetch_visible_projects(
     db: AsyncSession = Depends(get_db),
     user = Depends(require_role("manager", "admin", "user")),
 ):
-    """
-    GET /projects/visible — list projects visible to caller:
-    Caller sends headers:
-    X-Role: admin|manager|user
-    X-Clearance: <int>
-
-    Visibility rule:
-    [1] Must have X-Clearance >= project.min_clearance
-    [2] If X-Role == "user", only show projects the caller is assigned to (simulate caller by X-User-Email header, required for user role).
-    [3] If X-Role in {"manager","admin"}, show all projects that pass the clearance filter.
-    """    
+    logger.info("Fetching visible projects", extra={
+        "limit": limit,
+        "offset": offset,
+        "action": "fetch_list"
+    })
     await check_headers(user)
     user_rtn = await get_user_by_email(user, db)
 
     if user["role"] == "user":
-        logger.info("Only showing projects the user email is assigned to.")
+        logger.info("Fetching user assigned projects", extra={
+            "user_id": user_rtn.id,
+            "action": "fetch_list_user"
+        })
         projstmt = (
             select(Project)
             .join(Assignment, Assignment.project_id == Project.id)
@@ -72,7 +69,10 @@ async def fetch_visible_projects(
             .limit(limit)
         )
     else:
-        logger.info("Only projects with clearance are equal or less than the user (looked up by email) meets clearance requirements for.")
+        logger.info("Fetching clearance-based projects", extra={
+            "clearance_level": user_rtn.clearance_level,
+            "action": "fetch_list_clearance"
+        })
         projstmt = (
             select(Project)
             .filter(Project.min_clearance <= user_rtn.clearance_level)
@@ -82,16 +82,20 @@ async def fetch_visible_projects(
         )
 
     project_rtn = (await db.scalars(projstmt)).all()
-    logger.info(f"Project rtn length: {len(project_rtn)}")
-
+    
     if len(project_rtn) > 0:
         pydantic_rtn = [ProjectRead.model_validate(record) for record in project_rtn]
-        logger.info(f"{len(project_rtn)} projects visible to user (via email) found.")
+        logger.info("Projects found", extra={
+            "count": len(project_rtn),
+            "action": "fetch_list_success"
+        })
         return pydantic_rtn
-    else:
-        er_msg = "No projects visible to user (looked up via email) found."
-        logger.error(er_msg)
-        raise HTTPException(404, er_msg)
+    
+    logger.error("No visible projects", extra={
+        "user_id": user_rtn.id,
+        "action": "fetch_list_empty"
+    })
+    raise HTTPException(404, f"No projects visible to user {user_rtn.id} found.")
 
 
 # This is okay here since this is the last GET endpoint in the file.
@@ -106,18 +110,36 @@ async def fetch_project(
     db: AsyncSession = Depends(get_db),
     user = Depends(require_role("admin", "manager", "user")),
 ):
-    """
-    admin role can see all. manager role can only see to their clearance level
-    user role cannot see via this function
-    """
+    logger.info("Fetching project", extra={
+        "project_id": project_id,
+        "action": "fetch"
+    })
     await check_headers(user)
     user_rtn = await get_user_by_email(user, db)
 
     if user["role"] == "admin":
+        logger.info("Processing admin request", extra={
+            "role": "admin",
+            "project_id": project_id,
+            "action": "fetch_admin"
+        })
         projstmt = select(Project).filter(Project.id == project_id)
     elif user["role"] == "manager":
+        logger.info("Processing manager request", extra={
+            "role": "manager",
+            "project_id": project_id,
+            "clearance_level": user_rtn.clearance_level,
+            "action": "fetch_manager"
+        })
         projstmt = select(Project).filter(and_(Project.id == project_id, Project.min_clearance <= user_rtn.clearance_level))
     else:
+        logger.info("Processing user request", extra={
+            "role": "user",
+            "project_id": project_id,
+            "user_id": user_rtn.id,
+            "clearance_level": user_rtn.clearance_level,
+            "action": "fetch_user"
+        })
         # role is "user", only returns those he is assigned to
         projstmt = select(Project).join(
             Assignment, and_(Assignment.project_id == Project.id, Assignment.employee_id == user_rtn.id)
@@ -131,13 +153,17 @@ async def fetch_project(
     project_rtn = (await db.execute(projstmt)).scalar_one_or_none()
     
     if project_rtn is not None:
-        # This ensures the employee email is unique
-        logger.info(f"Project id: {project_id} found.")
+        logger.info("Project found", extra={
+            "project_id": project_id,
+            "action": "fetch_success"
+        })
         return project_rtn
-    else:
-        er_msg = f"Project id: {project_id} NOT found."
-        logger.error(er_msg)
-        raise HTTPException(404, er_msg)
+    
+    logger.error("Project not found", extra={
+        "project_id": project_id,
+        "action": "fetch_failed"
+    })
+    raise HTTPException(404, f"Project id {project_id} NOT found.")
 
 
 @router.post(
@@ -152,9 +178,10 @@ async def create_project(
     db: AsyncSession = Depends(get_db),
     user = Depends(require_role("vendor_app")),
 ):
-    """
-    Endpoints return proper status codes: 201 on create, 200 on reads/lists, 400 on bad headers.
-    """
+    logger.info("Creating project", extra={
+        "code": payload.code,
+        "action": "create"
+    })
     await check_headers(user)
 
     new_project = Project(**payload.model_dump())
@@ -162,15 +189,26 @@ async def create_project(
     project_rtn = (await db.execute(projstmt)).scalar_one_or_none()
     
     if project_rtn is None:
-        # This ensures the employee email is unique
+        logger.info("Creating new project", extra={
+            "code": payload.code,
+            "action": "create_new"
+        })
         db.add(new_project)
         await db.commit()
         await db.refresh(new_project)
-        logger.info(f"Project code: {payload.code} added.")
+        logger.info("Project created", extra={
+            "code": payload.code,
+            "id": new_project.id,
+            "action": "create_success"
+        })
         response.status_code = 201
         return new_project
     else:
-        logger.info(f"Project code: {payload.code} already exists.")
+        logger.info("Project exists", extra={
+            "code": payload.code,
+            "id": project_rtn.id,
+            "action": "create_skipped"
+        })
         return project_rtn
 
 
@@ -186,11 +224,21 @@ async def update_project(
     user = Depends(require_role("vendor_app")),
 ):
     await check_headers(user)
+    logger.info("Updating project", extra={
+        "project_id": payload.id,
+        "code": payload.code,
+        "action": "update"
+    })
 
     projstmt = select(Project).filter(Project.id == payload.id)
     project_rtn = (await db.execute(projstmt)).scalar_one_or_none()
     
     if project_rtn is not None:
+        logger.info("Project found for update", extra={
+            "project_id": payload.id,
+            "code": payload.code,
+            "action": "update_found"
+        })
 
         # Apply updates from payload onto the existing ORM object
         for key, value in payload.model_dump(exclude_unset=True).items():
@@ -199,9 +247,17 @@ async def update_project(
         db.add(project_rtn)
         await db.commit()
         await db.refresh(project_rtn)
-        logger.info(f"Project ID: {payload.id} updated.")
+        
+        logger.info("Project updated", extra={
+            "project_id": payload.id,
+            "code": payload.code,
+            "action": "update_success"
+        })
         return project_rtn
-    else:
-        er_msg = f"Project Id: {payload.id} not found."
-        logger.error(er_msg)
-        raise HTTPException(404, er_msg)
+    
+    logger.error("Project not found", extra={
+        "project_id": payload.id,
+        "code": payload.code,
+        "action": "update_failed"
+    })
+    raise HTTPException(404, f"Project id {payload.id} not found.")
