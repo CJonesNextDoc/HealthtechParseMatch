@@ -4,6 +4,7 @@ from time import perf_counter
 from typing import Callable
 import logging
 from fastapi.concurrency import asynccontextmanager
+from fastapi.openapi.utils import get_openapi
 
 from app.db.db import check_db_connection, create_all, dispose_engine
 from app.db.db_manage import ensure_database
@@ -87,6 +88,36 @@ async def health_check():
     logger.info("Checking db connection")
     db_ok = await check_db_connection()
     return {"status": "ok", "db": db_ok}
+
+
+# Custom OpenAPI schema generation
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+    
+    openapi_schema = get_openapi(
+        title="FastAPI Scaffold Demo",
+        version="1.0.0",
+        description="A scaffolding template for FastAPI applications with RBAC and structured logging",
+        routes=app.routes,
+    )
+    
+    # Add security schemes
+    openapi_schema["components"]["securitySchemes"] = {
+        "RoleHeader": {
+            "type": "apiKey",
+            "in": "header",
+            "name": "X-Role"
+        },
+        "UserEmailHeader": {
+            "type": "apiKey",
+            "in": "header",
+            "name": "X-User-Email"
+        }
+    }
+    
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
 
 
 app.include_router(employees_router.router)
