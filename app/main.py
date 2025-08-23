@@ -119,6 +119,8 @@ def custom_openapi():
     app.openapi_schema = openapi_schema
     return app.openapi_schema
 
+# Set the custom OpenAPI schema
+app.openapi = custom_openapi
 
 app.include_router(employees_router.router)
 app.include_router(projects_router.router)
