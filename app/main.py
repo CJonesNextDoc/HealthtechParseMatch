@@ -6,9 +6,9 @@ import logging
 from fastapi.concurrency import asynccontextmanager
 from fastapi.openapi.utils import get_openapi
 
-from app.db.db import check_db_connection, create_all, dispose_engine
+from app.db.db import create_all, dispose_engine
 from app.db.db_manage import ensure_database
-from app.routers import employees_router, projects_router, assignments_router
+from app.routers import employees_router, projects_router, assignments_router, health_router
 from app.utils.logging_config import setup_logging
 from app.core.context import request_id_ctx_var
 
@@ -83,13 +83,6 @@ async def log_requests(request: Request, call_next: Callable):
         request_id_ctx_var.reset(token)
 
 
-@app.get("/health/check")
-async def health_check():
-    logger.info("Checking db connection")
-    db_ok = await check_db_connection()
-    return {"status": "ok", "db": db_ok}
-
-
 # Custom OpenAPI schema generation
 def custom_openapi():
     if app.openapi_schema:
@@ -122,6 +115,7 @@ def custom_openapi():
 # Set the custom OpenAPI schema
 app.openapi = custom_openapi
 
+app.include_router(health_router.router)
 app.include_router(employees_router.router)
 app.include_router(projects_router.router)
 app.include_router(assignments_router.router)
