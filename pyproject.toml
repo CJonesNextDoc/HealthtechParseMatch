@@ -39,4 +39,4 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 
 [tool.black]
-line-length = 88
+line-length = 125
