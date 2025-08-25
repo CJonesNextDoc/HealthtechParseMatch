@@ -39,8 +39,8 @@ def setup_logging(
     backup_count: int = 5
 ) -> None:
     """Configure application-wide logging with JSON formatting"""
+    log_dir = Path(__file__).parent.parent.parent / "logs"
     if log_file is None:
-        log_dir = Path(__file__).parent.parent.parent / "logs"
         log_dir.mkdir(exist_ok=True)
         log_file = log_dir / "app.log"
 
@@ -72,6 +72,8 @@ def setup_logging(
 
     logger = logging.getLogger(__name__)
     logger.info("Logging configured", extra={"log_file": str(log_file)})
+    logger.info(f"log_dir: {log_dir}")
+
 
 def check_logging_handlers():
     """Diagnostic function to check logger configuration"""

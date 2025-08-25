@@ -21,7 +21,7 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["app", "logs"]
+packages = ["app"]
 
 [project.optional-dependencies]
 dev = [

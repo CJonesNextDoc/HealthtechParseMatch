@@ -19,3 +19,4 @@ dist/
 # Log files
 logs/
 *.log
+test_output.txt
