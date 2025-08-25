@@ -125,7 +125,7 @@ def custom_openapi():
     
     openapi_schema = get_openapi(
         title="FastAPI Scaffold Demo",
-        version="1.0.0",
+        version="0.2.0",
         description="A scaffolding template for FastAPI applications with RBAC and structured logging",
         routes=app.routes,
     )

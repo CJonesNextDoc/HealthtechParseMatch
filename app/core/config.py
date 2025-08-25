@@ -6,7 +6,7 @@ from pydantic import Field
 class Settings(BaseSettings):
     # Application settings
     app_name: str = "FastAPI Demo"
-    version: str = "1.0.0"
+    version: str = "0.2.0"
     environment: str = "development"
     
     # Database settings - preserve SQLite testing support
