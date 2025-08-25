@@ -1,22 +1,33 @@
-.venv/
+# Virtual env
+/.venv/
+
+# Python caches & bytecode
 __pycache__/
-*.pyc
+*.py[cod]
 *.pyo
 *.pyd
+
+# Databases
 *.db
 *.sqlite3
-.env
-.DS_Store
-*.egg-info/
-.pytest_cache/
-test.db
+/test.db
 
-# Build directories
+# Env files
+/.env
+
+# macOS
+.DS_Store
+
+# Packaging/build
+*.egg-info/
 build/
 dist/
 *.egg
 
-# Log files
-logs/
-*.log
+# pytest
+/.pytest_cache/
+
+# Logs and outputs
+/logs/
+/*.log
 test_output.txt
