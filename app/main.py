@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 import uuid
 # Add dotenv load & settings cache clear early to ensure Settings picks up .env
 from dotenv import load_dotenv
@@ -8,21 +9,25 @@ try:
 except Exception:
     pass
 
-from fastapi import APIRouter, FastAPI, Request  # noqa: E402
-from time import perf_counter  # noqa: E402
-from typing import Callable  # noqa: E402
-import logging  # noqa: E402
-import fastapi  # noqa: E402
-from fastapi.concurrency import asynccontextmanager  # noqa: E402
-from fastapi.openapi.utils import get_openapi  # noqa: E402
-import os  # noqa: E402
+from fastapi import APIRouter, FastAPI, Request
+from time import perf_counter
+from typing import Callable
 
-from app.db.db import create_all, dispose_engine  # noqa: E402
-from app.db.db_manage import ensure_database  # noqa: E402
-from app.routers import employees_router, projects_router, assignments_router, health_router  # noqa: E402
-from app.utils.logging_config import setup_logging  # noqa: E402
-from app.core.context import request_id_ctx_var  # noqa: E402
-from app.core.middleware import RateLimitMiddleware  # noqa: E402
+import logging
+import fastapi
+from fastapi.concurrency import asynccontextmanager
+from fastapi.openapi.utils import get_openapi
+import os
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+from pathlib import Path
+
+from app.db.db import create_all, dispose_engine
+from app.db.db_manage import ensure_database
+from app.routers import employees_router, projects_router, assignments_router, health_router
+from app.utils.logging_config import setup_logging
+from app.core.context import request_id_ctx_var
+from app.core.middleware import RateLimitMiddleware
 
 # Configure logging
 setup_logging(log_level="INFO")
@@ -154,3 +159,13 @@ app.include_router(health_router.router)
 app.include_router(employees_router.router)
 app.include_router(projects_router.router)
 app.include_router(assignments_router.router)
+
+# Mount the static directory
+static_dir = Path(__file__).resolve().parent.parent.joinpath("app", "static")
+# If you prefer a relative path: StaticFiles(directory="app/static")
+app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+# Serve favicon at the conventional path so browsers find it automatically
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    return FileResponse(static_dir.joinpath("favicon.ico"))

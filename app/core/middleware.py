@@ -148,9 +148,16 @@ class RateLimitMiddleware:
                 
                 # Only proceed if under limit
                 return await call_next(request)
-                
+
+            self.logger.info(f"Unauthenticated request to {path}")
             # Allow unauthenticated /health/check
-            if path == "/health/check":
+            if (
+                "openapi" in path or
+                "health" in path or
+                "docs" in path or
+                "favicon.ico" in path or
+                "redoc" in path
+            ):
                 self.logger.info("Allowing unauthenticated health check")
                 return await call_next(request)
                 

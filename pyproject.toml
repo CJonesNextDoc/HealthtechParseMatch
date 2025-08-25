@@ -40,3 +40,8 @@ testpaths = ["tests"]
 
 [tool.black]
 line-length = 125
+
+[tool.ruff]
+per-file-ignores = [
+  "app/main.py:E402"
+]
