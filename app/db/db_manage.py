@@ -55,7 +55,6 @@ async def ensure_database():
 
     # Log raw repr so we can detect stray whitespace or bad chars
     db_url_raw = getattr(settings, "database_url", "") or ""
-    # logger.info(f"Effective DATABASE_URL repr: {repr(db_url_raw)}")
     db_url = db_url_raw.strip()
     if db_url != db_url_raw:
         logger.warning("DATABASE_URL contained surrounding whitespace; using stripped value")
