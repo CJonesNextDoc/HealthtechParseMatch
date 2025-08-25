@@ -28,9 +28,6 @@ from app.core.middleware import RateLimitMiddleware  # noqa: E402
 setup_logging(log_level="INFO")
 logger = logging.getLogger(__name__)
 
-# Initialize rate limiter
-# rate_limiter = RateLimiter()
-
 
 async def init_startup():
     # Skip database check in test mode
