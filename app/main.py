@@ -1,23 +1,43 @@
 import uuid
-from fastapi import APIRouter, FastAPI, Request
-from time import perf_counter
-from typing import Callable
-import logging
-from fastapi.concurrency import asynccontextmanager
-from fastapi.openapi.utils import get_openapi
+# Add dotenv load & settings cache clear early to ensure Settings picks up .env
+from dotenv import load_dotenv
+from app.core.config import get_settings
+load_dotenv(dotenv_path=".env", override=False)
+try:
+    get_settings.cache_clear()
+except Exception:
+    pass
 
-from app.db.db import create_all, dispose_engine
-from app.db.db_manage import ensure_database
-from app.routers import employees_router, projects_router, assignments_router, health_router
-from app.utils.logging_config import setup_logging
-from app.core.context import request_id_ctx_var
+from fastapi import APIRouter, FastAPI, Request  # noqa: E402
+from time import perf_counter  # noqa: E402
+from typing import Callable  # noqa: E402
+import logging  # noqa: E402
+import fastapi  # noqa: E402
+from fastapi.concurrency import asynccontextmanager  # noqa: E402
+from fastapi.openapi.utils import get_openapi  # noqa: E402
+import os  # noqa: E402
+
+from app.db.db import create_all, dispose_engine  # noqa: E402
+from app.db.db_manage import ensure_database  # noqa: E402
+from app.routers import employees_router, projects_router, assignments_router, health_router  # noqa: E402
+from app.utils.logging_config import setup_logging  # noqa: E402
+from app.core.context import request_id_ctx_var  # noqa: E402
+from app.core.middleware import RateLimitMiddleware  # noqa: E402
 
 # Configure logging
 setup_logging(log_level="INFO")
 logger = logging.getLogger(__name__)
 
+# Initialize rate limiter
+# rate_limiter = RateLimiter()
+
 
 async def init_startup():
+    # Skip database check in test mode
+    if os.getenv("TESTING") == "1":
+        logger.info("Test mode - skipping database check")
+        return True
+        
     ok = await ensure_database()
     if not ok:
         logger.info("Database not ok, exiting system")
@@ -33,7 +53,12 @@ async def shutdown() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Initialize state
+    app.state.rate_limit_cache = {}
+    
+    # Database startup
     await init_startup()
+    
     try:
         yield
     finally:
@@ -41,8 +66,11 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="FastAPI Demo", lifespan=lifespan)
-router = APIRouter(tags=["FastAPI Demo"])
+router = APIRouter(tags=["FastAPI Demo"])  # Keep this line!
 
+# Move rate limit middleware here - BEFORE logging middleware
+logger.info("Registering rate limit middleware")
+app.middleware("http")(RateLimitMiddleware())
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next: Callable):
@@ -71,6 +99,16 @@ async def log_requests(request: Request, call_next: Callable):
         
         response.headers["X-Request-ID"] = request_id
         return response
+    
+    except fastapi.exceptions.HTTPException as http_exc:
+        # Handle HTTP exceptions separately to preserve status code
+        log_context.update({
+            "status_code": http_exc.status_code,
+            "error": http_exc.detail,
+            "error_type": "HTTPException"
+        })
+        logger.info("HTTP exception occurred", extra=log_context)
+        raise http_exc  # Re-raise to let FastAPI handle the response
 
     except Exception as exc:
         log_context.update({

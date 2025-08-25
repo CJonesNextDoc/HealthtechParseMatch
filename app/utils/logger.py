@@ -1,6 +1,21 @@
 import logging
 from app.core.context import request_id_ctx_var
 
+def _check_logger_handlers(name: str) -> None:
+    """Debug function to check logger configuration"""
+    logger = logging.getLogger(name)
+    root = logging.getLogger()
+    
+    print("\n=== Logger Configuration ===")
+    print(f"Logger '{name}' handlers: {len(logger.handlers)}")
+    for h in logger.handlers:
+        print(f"  - {type(h).__name__}")
+    
+    print(f"Root logger handlers: {len(root.handlers)}")
+    for h in root.handlers:
+        print(f"  - {type(h).__name__}")
+    print("=========================\n")
+
 def get_logger(name: str) -> logging.Logger:
     """Get a logger that automatically includes request_id in extra"""
     logger = logging.getLogger(name)
@@ -21,4 +36,10 @@ def get_logger(name: str) -> logging.Logger:
     logger.warning = wrap_log(logger.warning)
     logger.debug = wrap_log(logger.debug)
     
+    # Only add handlers if none exist
+    if not logger.handlers and not logging.getLogger().handlers:
+        # ... existing handler setup code ...
+        pass
+        
+    _check_logger_handlers(name)  # Add this line temporarily
     return logger

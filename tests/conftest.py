@@ -2,21 +2,26 @@
 import os
 import sys
 import pytest
-import logging
-import asyncio
-from pathlib import Path
+from httpx import AsyncClient
+from app.main import app
+from app.core.middleware import RateLimiter
 
 # Set test environment variables BEFORE any app imports
-os.environ["TESTING"] = "1"
+os.environ["TESTING"] = "1"  
+os.environ["RATE_LIMIT_TEST"] = "1"  # Enable rate limiting in tests
 os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./test.db"
 os.environ["SQLALCHEMY_ECHO"] = "false"
+os.environ["USER_RATE_LIMIT"] = "2"  # Only allow 2 requests per second for users
+os.environ["MANAGER_RATE_LIMIT"] = "5"  # 5 requests per second for managers
+os.environ["ADMIN_RATE_LIMIT"] = "10"  # 10 requests per second for admins
+os.environ["APP_RATE_LIMIT"] = "20"  # 20 requests per second for vendor apps
 
 # Now we can safely import app components
-from httpx import ASGITransport, AsyncClient
+import logging
+import asyncio
+from httpx import ASGITransport
 from asgi_lifespan import LifespanManager
 from sqlalchemy import text
-from app.main import app
-from app.utils.logging_config import setup_logging
 
 # 1) Windows: force Selector loop (asyncpg + Proactor)
 if sys.platform.startswith("win"):
@@ -42,6 +47,8 @@ async def _db_schema_and_cleanup():
     """Create and clean up test database"""
     from app.db.test_db import test_engine
     from app.models.modelbase import Base
+    import atexit
+    import os
 
     # Drop and recreate all tables
     async with test_engine.begin() as conn:
@@ -54,6 +61,17 @@ async def _db_schema_and_cleanup():
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
     await test_engine.dispose()
+
+    # Register cleanup at process exit
+    def cleanup_db():
+        try:
+            if os.path.exists("./test.db"):
+                os.remove("./test.db")
+        except PermissionError:
+            pass  # Ignore if file is locked
+    
+    atexit.register(cleanup_db)
+
 
 @pytest.fixture
 async def client():
@@ -81,7 +99,11 @@ def manager_headers_low_clearance():
 
 @pytest.fixture
 def user_headers_low_clearance():
-    return {"X-Role": "user", "X-User-Email": "john.doe@example.com"}
+    """Headers for a regular user"""
+    return {
+        "X-Role": "user",
+        "X-User-Email": "john.doe@example.com"
+    }
 
 @pytest.fixture
 def user_headers_mid_clearance():
@@ -160,17 +182,21 @@ async def setup_project_test_data():
     yield
 
 @pytest.fixture(autouse=True)
-async def setup_assignment_test_data():
-    """Create initial assignment test data"""
+async def setup_assignment_test_data(_db_schema_and_cleanup):
+    """Setup test data for assignments"""
     from app.models.assignment import Assignment
-    from app.db.test_db import TestingSessionLocal
+    from app.db.test_db import TestingSessionLocal, test_engine
     from sqlalchemy import text
+    from app.models.modelbase import Base
 
+    # Ensure tables exist
+    async with test_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    
     async with TestingSessionLocal() as session:
-        # Clear existing assignments
+        # Now safe to delete
         await session.execute(text("DELETE FROM assignment"))
-        await session.commit()
-
+        
         # Create initial assignments
         assignments = [
             Assignment(
@@ -194,16 +220,75 @@ async def setup_assignment_test_data():
 
 @pytest.fixture(autouse=True)
 def setup_test_logging():
-    """Configure separate logging for tests"""
-    log_dir = Path(__file__).parent.parent / "logs"
-    log_dir.mkdir(exist_ok=True)
+    """Configure logging for tests"""
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
     
-    # Set up test-specific logging
-    setup_logging(
-        log_level="DEBUG",
-        log_file=log_dir / "test.log",
-        max_size_mb=5,
-        backup_count=2
-    )
+    # Remove any existing handlers
+    for handler in logger.handlers[:]:
+        logger.removeHandler(handler)
+    
+    # Add file handler
+    file_handler = logging.FileHandler('test_output.txt', mode='w', encoding='utf-8')
+    file_handler.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+    
+    # Add console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
     
     yield
+    
+    # Clean up handlers
+    logger.removeHandler(file_handler)
+    logger.removeHandler(console_handler)
+    file_handler.close()
+
+@pytest.fixture(autouse=True)
+def verify_rate_limit_settings():
+    """Verify rate limit environment variables are set correctly"""
+    assert os.getenv("RATE_LIMIT_TEST") == "1"
+    assert os.getenv("RATE_LIMIT_WINDOW") == "1"
+    assert os.getenv("USER_RATE_LIMIT") == "2"
+    assert os.getenv("MANAGER_RATE_LIMIT") == "5"
+    assert os.getenv("ADMIN_RATE_LIMIT") == "10"
+    assert os.getenv("APP_RATE_LIMIT") == "20"
+    yield
+
+@pytest.fixture(autouse=True)
+def setup_test_environment():
+    """Setup test environment variables"""
+    from app.core.config import get_settings
+    
+    # Clear settings cache
+    get_settings.cache_clear()
+    
+    # Set test environment variables
+    os.environ["TESTING"] = "1"
+    os.environ["RATE_LIMIT_TEST"] = "1"
+    os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./test.db"
+    os.environ["USER_RATE_LIMIT"] = "2"  # 2 requests per second for tests
+    os.environ["RATE_LIMIT_WINDOW"] = "1"  # 1 second window
+    
+    # Verify settings are correct
+    settings = get_settings()
+    assert settings.rate_limit_test is True
+    assert settings.user_rate_limit == 2
+    assert settings.rate_limit_window == 1
+    
+    yield
+    
+    # Clean up
+    os.environ.pop("TESTING", None)
+    os.environ.pop("RATE_LIMIT_TEST", None)
+    get_settings.cache_clear()  # Clear cache again after test
+
+
+@pytest.fixture
+def rate_limiter():
+    """Create a fresh RateLimiter instance for tests."""
+    return RateLimiter()

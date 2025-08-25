@@ -1,0 +1,15 @@
+2025-08-24 22:16:31,632 - app.main - INFO - Test mode - skipping database check
+2025-08-24 22:16:31,633 - app.main - INFO - Request started
+2025-08-24 22:16:31,634 - app.core.middleware - INFO - Processing request to /employees/12121212
+2025-08-24 22:16:31,634 - app.core.middleware - INFO - Authenticated request from curtisjonesknox@gmail.com
+2025-08-24 22:16:31,634 - app.core.middleware - INFO - Cache for curtisjonesknox@gmail.com:manager: removed 0 old entries, 2 current entries
+2025-08-24 22:16:31,634 - app.core.middleware - INFO - Request allowed for curtisjonesknox@gmail.com:manager: 3/300 requests in window
+2025-08-24 22:16:31,635 - app.db.db - INFO - Using TEST database session
+2025-08-24 22:16:31,635 - app.core.auth - INFO - raw_role=manager, normalized_role=manager, allowed={'manager', 'user', 'admin'}
+2025-08-24 22:16:31,635 - app.core.auth - INFO - role in allowed: True
+2025-08-24 22:16:31,636 - app.routers.employees_router - INFO - Fetching employee
+2025-08-24 22:16:31,638 - app.routers.employees_router - ERROR - Employee not found
+2025-08-24 22:16:31,638 - app.core.middleware - INFO - Middleware dispatch: <bound method RateLimitMiddleware.__call__ of <app.core.middleware.RateLimitMiddleware object at 0x000002295A392660>>
+2025-08-24 22:16:31,639 - app.main - INFO - Request completed
+2025-08-24 22:16:31,639 - httpx - INFO - HTTP Request: GET http://test/employees/12121212 "HTTP/1.1 404 Not Found"
+2025-08-24 22:16:31,640 - app.main - INFO - Shutdown hook called — release engine.

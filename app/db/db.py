@@ -3,8 +3,11 @@ from logging import getLogger
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
-from app.config import settings
 from typing import AsyncGenerator
+from app.core.config import get_settings
+import os
+
+settings = get_settings()
 
 logger = getLogger(__name__)
 
@@ -17,8 +20,10 @@ def _build_engine():
         future=True,
         echo=settings.sqlalchemy_echo,
     )
-    if settings.testing:
-        # test-friendly: no pooling, avoids “another operation is in progress”
+    # Check both testing flags like we do in get_db()
+    is_testing = settings.testing or settings.is_testing
+    if is_testing:
+        # test-friendly: no pooling, avoids "another operation is in progress"
         kwargs["poolclass"] = NullPool
         logger.info("In TESTING mode. poolclass = NullPool")
     else:
@@ -35,6 +40,15 @@ def _build_engine():
 def _ensure_sessionmaker():
     global _engine, _SessionLocal
     if _engine is None:
+        # Force check environment variable first
+        if os.getenv("TESTING") == "1" or settings.testing or settings.is_testing:
+            from app.db.test_db import test_engine, TestingSessionLocal
+            logger.info("Using TEST database configuration")
+            _engine = test_engine
+            _SessionLocal = TestingSessionLocal
+            return _SessionLocal
+
+        # Only reach here if definitely not testing
         _engine = _build_engine()
         _SessionLocal = async_sessionmaker(_engine, expire_on_commit=False, class_=AsyncSession)
     return _SessionLocal
@@ -42,15 +56,18 @@ def _ensure_sessionmaker():
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """Get database session based on environment"""
-    if settings.testing:
+    # Force check environment variable first
+    if os.getenv("TESTING") == "1" or settings.testing or settings.is_testing:
+        logger.info("Using TEST database session")
         from app.db.test_db import TestingSessionLocal
         async with TestingSessionLocal() as session:
             yield session
-    else:
-        # Use local _SessionLocal instead of importing
-        sessionmaker = _ensure_sessionmaker()
-        async with sessionmaker() as session:
-            yield session
+        return
+
+    # Only reach here if definitely not testing
+    sessionmaker = _ensure_sessionmaker()
+    async with sessionmaker() as session:
+        yield session
 
 
 async def check_db_connection():

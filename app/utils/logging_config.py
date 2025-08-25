@@ -46,6 +46,10 @@ def setup_logging(
 
     # Configure root logger
     root_logger = logging.getLogger()
+    
+    # Clear any existing handlers
+    root_logger.handlers.clear()
+    
     root_logger.setLevel(getattr(logging, log_level.upper()))
 
     # JSON formatter for structured logging
@@ -68,3 +72,18 @@ def setup_logging(
 
     logger = logging.getLogger(__name__)
     logger.info("Logging configured", extra={"log_file": str(log_file)})
+
+def check_logging_handlers():
+    """Diagnostic function to check logger configuration"""
+    loggers = [
+        ('root', logging.getLogger()),
+        ('app', logging.getLogger('app')),
+        ('app.utils', logging.getLogger('app.utils')),
+        ('app.main', logging.getLogger('app.main'))
+    ]
+    
+    for name, logger in loggers:
+        print(f"\nLogger: {name}")
+        print(f"Handlers: {len(logger.handlers)}")
+        for h in logger.handlers:
+            print(f"  - {type(h).__name__}")
