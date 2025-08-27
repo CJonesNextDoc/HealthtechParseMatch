@@ -1,3 +1,4 @@
+# app/main.py
 # ruff: noqa: E402
 import uuid
 # Add dotenv load & settings cache clear early to ensure Settings picks up .env
