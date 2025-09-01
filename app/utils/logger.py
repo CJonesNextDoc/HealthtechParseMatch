@@ -1,45 +1,42 @@
+# app/utils/logger.py
 import logging
+from typing import Any, Mapping, MutableMapping, Optional, Tuple
+
 from app.core.context import request_id_ctx_var
 
-def _check_logger_handlers(name: str) -> None:
-    """Debug function to check logger configuration"""
-    logger = logging.getLogger(name)
-    root = logging.getLogger()
-    
-    print("\n=== Logger Configuration ===")
-    print(f"Logger '{name}' handlers: {len(logger.handlers)}")
-    for h in logger.handlers:
-        print(f"  - {type(h).__name__}")
-    
-    print(f"Root logger handlers: {len(root.handlers)}")
-    for h in root.handlers:
-        print(f"  - {type(h).__name__}")
-    print("=========================\n")
 
-def get_logger(name: str) -> logging.Logger:
-    """Get a logger that automatically includes request_id in extra"""
+def _check_logger_handlers(name: str) -> None:
+    """Debug helper to inspect and flush handlers (safe no-op if none)."""
     logger = logging.getLogger(name)
-    
-    # Wrap the logger's methods to automatically include request_id
-    def wrap_log(func):
-        def wrapped(msg: str, *args, **kwargs):
-            extras = kwargs.get('extra', {})
-            request_id = request_id_ctx_var.get(None)
-            if request_id:
-                extras['request_id'] = request_id
-            kwargs['extra'] = extras
-            return func(msg, *args, **kwargs)
-        return wrapped
-    
-    logger.info = wrap_log(logger.info)
-    logger.error = wrap_log(logger.error)
-    logger.warning = wrap_log(logger.warning)
-    logger.debug = wrap_log(logger.debug)
-    
-    # Only add handlers if none exist
-    if not logger.handlers and not logging.getLogger().handlers:
-        # ... existing handler setup code ...
-        pass
-        
-    _check_logger_handlers(name)  # Add this line temporarily
-    return logger
+    for h in logger.handlers:
+        try:
+            h.flush()
+        except Exception:
+            pass
+
+
+class RequestIdAdapter(logging.LoggerAdapter):
+    """Injects request_id from context var into log `extra`."""
+
+    def __init__(self, logger: logging.Logger, extra: Optional[Mapping[str, Any]] = None) -> None:
+        super().__init__(logger, dict(extra or {}))
+
+    # Match the base class signature exactly for mypy
+    def process(self, msg: Any, kwargs: MutableMapping[str, Any]) -> Tuple[Any, MutableMapping[str, Any]]:
+        rid = request_id_ctx_var.get(None)
+        extra: dict[str, Any] = dict(kwargs.get("extra", {}))  # make a copy we can mutate
+        if rid is not None:
+            extra["request_id"] = rid
+        kwargs["extra"] = extra
+        return msg, kwargs
+
+
+def get_logger(name: str) -> RequestIdAdapter:
+    """
+    Return a logger adapter that carries request_id from context.
+    Usage:
+        logger = get_logger(__name__)
+        logger.info("hello")
+    """
+    base = logging.getLogger(name)
+    return RequestIdAdapter(base)

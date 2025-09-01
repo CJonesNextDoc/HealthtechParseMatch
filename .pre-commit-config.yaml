@@ -1,13 +1,32 @@
+# Run: pre-commit clean && pre-commit install
+# Then: pre-commit run --all-files
+
 repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: mixed-line-ending
+      - id: check-merge-conflict
+
   - repo: https://github.com/psf/black
-    rev: 24.4.2
+    rev: 25.1.0
     hooks:
       - id: black
-  - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: v0.6.0
+        args: ["--line-length=125"]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
     hooks:
       - id: ruff
+        args: ["--fix", "--exit-non-zero-on-fix"]
+
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.10.0
+    rev: v1.17.1
     hooks:
       - id: mypy
+        # IMPORTANT: Do NOT install sqlalchemy2-stubs with SA 2.x plugin.
+        additional_dependencies:
+          - sqlalchemy>=2.0
+          - pydantic>=2.8

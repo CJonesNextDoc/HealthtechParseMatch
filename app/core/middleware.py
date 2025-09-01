@@ -1,44 +1,48 @@
-from app.utils.logger import get_logger
 import logging
-from fastapi import Request, HTTPException
-from app.core.auth import get_caller
 import time
 from typing import Callable
+
+from fastapi import HTTPException, Request
+
+from app.core.auth import get_caller
 from app.core.config import get_settings
+from app.utils.logger import get_logger
+
 
 def _check_logger_config():
     """Temporary diagnostic function to check logger configuration"""
     logger = get_logger(__name__)
     root = logging.getLogger()
-    
+
     print("\n=== Logger Diagnostic Info ===")
     print(f"Logger name: {logger.name}")
     print(f"Logger handlers: {len(logger.handlers)}")
     for i, h in enumerate(logger.handlers):
         print(f"  Handler {i}: {type(h).__name__}")
-    
+
     print(f"\nRoot logger handlers: {len(root.handlers)}")
     for i, h in enumerate(root.handlers):
         print(f"  Handler {i}: {type(h).__name__}")
     print("===========================\n")
+
 
 class RateLimiter:
     def __init__(self):
         self._cache = {}
         self.logger = get_logger(__name__)
         self.logger.info(f"Creating new RateLimiter instance: {id(self)}")  # Add instance ID
-        
+
         # Get fresh settings
         get_settings.cache_clear()
         settings = get_settings()
         self.WINDOW_SIZE = float(settings.rate_limit_window)
-        
+
         # Store limits
         self.limits = {
-            'user': int(settings.user_rate_limit),
-            'manager': int(settings.manager_rate_limit),
-            'admin': int(settings.admin_rate_limit),
-            'vendor_app': int(settings.app_rate_limit)
+            "user": int(settings.user_rate_limit),
+            "manager": int(settings.manager_rate_limit),
+            "admin": int(settings.admin_rate_limit),
+            "vendor_app": int(settings.app_rate_limit),
         }
         self.logger.info(f"Rate limiter {id(self)} initialized with limits: {self.limits}")
 
@@ -51,21 +55,21 @@ class RateLimiter:
             role_key = "vendor_app"
 
         limit = self.limits.get(role_key, self.limits.get("user"))
-        
+
         now = time.time()
         key = f"{user_email}:{role}"
-        
+
         if key not in self._cache:
             self._cache[key] = []
             self.logger.info(f"Created new cache entry for {key}")
-        
+
         # Clean old requests from window
         window_start = now - self.WINDOW_SIZE
         old_len = len(self._cache[key])
         self._cache[key] = [ts for ts in self._cache[key] if ts > window_start]
         new_len = len(self._cache[key])
         self.logger.info(f"Cache for {key}: removed {old_len - new_len} old entries, {new_len} current entries")
-        
+
         # Check if we would exceed limit
         current_requests = len(self._cache[key])
         # Block when already at (or above) the configured limit
@@ -79,21 +83,26 @@ class RateLimiter:
         return True
 
     def reset(self):
-        self.logger.info(f"Resetting rate limiter {id(self)} - before reset cache_keys={list(self._cache.keys())} sizes={[len(v) for v in self._cache.values()]}")
+        self.logger.info(
+            "Resetting rate limiter %s - before reset cache_keys=%s sizes=%s",
+            id(self),
+            list(self._cache.keys()),
+            [len(v) for v in self._cache.values()],
+        )
         self._cache = {}
         self.logger.info(f"Rate limiter {id(self)} state reset - after reset cache={self._cache}")
-        
+
         # Force settings refresh
         get_settings.cache_clear()
         settings = get_settings()
-        
+
         # Reinitialize limits
         self.WINDOW_SIZE = float(settings.rate_limit_window)
         self.limits = {
-            'user': int(settings.user_rate_limit),
-            'manager': int(settings.manager_rate_limit),
-            'admin': int(settings.admin_rate_limit),
-            'vendor_app': int(settings.app_rate_limit)
+            "user": int(settings.user_rate_limit),
+            "manager": int(settings.manager_rate_limit),
+            "admin": int(settings.admin_rate_limit),
+            "vendor_app": int(settings.app_rate_limit),
         }
         self.logger.info(f"Rate limiter {id(self)} reinitialized with limits: {self.limits}")
 
@@ -104,6 +113,7 @@ class RateLimiter:
         if key in self._cache:
             self._cache[key] = []
             self.logger.info(f"Rate limiter {id(self)} cache reset for user {key}")
+
 
 class RateLimitMiddleware:
     def __init__(self, requests: int = 2, window: int = 60, limiter=None):
@@ -116,7 +126,9 @@ class RateLimitMiddleware:
         # If app.state has a rate_limiter, use that shared instance (test injection point)
         app_limiter = getattr(request.app.state, "rate_limiter", None)
         if app_limiter is not None and app_limiter is not self.limiter:
-            self.logger.info(f"Using app.state.rate_limiter ({id(app_limiter)}) instead of self.limiter ({id(self.limiter)})")
+            self.logger.info(
+                f"Using app.state.rate_limiter ({id(app_limiter)}) instead of self.limiter ({id(self.limiter)})"
+            )
             self.limiter = app_limiter
 
         path = request.url.path
@@ -124,46 +136,36 @@ class RateLimitMiddleware:
 
         try:
             # Get caller info first
-            caller = await get_caller(
-                request.headers.get("X-User-Email"),
-                request.headers.get("X-Role")
-            )
-            
+            # caller = await get_caller(request.headers.get("X-User-Email"), request.headers.get("X-Role"))
+            caller = await get_caller(request)
+
             # Handle authenticated requests
             if caller:
                 self.logger.info(f"Authenticated request from {caller['email']}")
-                
+
                 # Skip rate limiting for /health/db only
                 if path == "/health/db":
                     return await call_next(request)
-                    
+
                 # Apply rate limiting to all other requests
                 if not await self.limiter.check_rate_limit(caller["email"], caller["role"]):
                     self.logger.info(f"Rate limit exceeded for {caller['email']}")
                     from fastapi.responses import JSONResponse
-                    return JSONResponse(
-                        status_code=429,
-                        content={"detail": "Rate limit exceeded"}
-                    )
-                
+
+                    return JSONResponse(status_code=429, content={"detail": "Rate limit exceeded"})
+
                 # Only proceed if under limit
                 return await call_next(request)
 
             self.logger.info(f"Unauthenticated request to {path}")
             # Allow unauthenticated /health/check
-            if (
-                "openapi" in path or
-                "health" in path or
-                "docs" in path or
-                "favicon.ico" in path or
-                "redoc" in path
-            ):
+            if "openapi" in path or "health" in path or "docs" in path or "favicon.ico" in path or "redoc" in path:
                 self.logger.info("Allowing unauthenticated health check")
                 return await call_next(request)
-                
+
             # Require auth for all other requests
             raise HTTPException(status_code=401, detail="Authentication required")
-            
+
         except HTTPException as exc:
             # Let FastAPI handle the conversion to response
             self.logger.warning(f"HTTP error occurred: {exc.detail}")

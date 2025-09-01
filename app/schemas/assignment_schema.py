@@ -1,17 +1,16 @@
 """
 Request/Response models for create/list operations.
 """
+
 from pydantic import BaseModel, ConfigDict
 
 
 class AssignmentCreate(BaseModel):
     employee_email: str
     project_code: str
-    role: str 
+    role: str
 
-    model_config = ConfigDict(
-        from_attributes=True
-    )
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AssignmentUpdate(BaseModel):

@@ -1,4 +1,5 @@
 import random
+
 import pytest
 
 
@@ -9,6 +10,7 @@ async def test_employees_get(client, manager_headers):
     data = resp.json()
     assert data["id"] == 1
 
+
 @pytest.mark.asyncio
 async def test_employees_create(client, manager_headers):
     num = random.randint(1000, 10_000_000)
@@ -18,6 +20,7 @@ async def test_employees_create(client, manager_headers):
     data = resp.json()
     assert data["id"] >= 4  # This should be 2 since we have one initial record
 
+
 @pytest.mark.asyncio
 async def test_employees_get_forbidden(client, vendor_headers):
     resp = await client.get("/employees/1", headers=vendor_headers)
@@ -25,10 +28,10 @@ async def test_employees_get_forbidden(client, vendor_headers):
     data = resp.json()
     assert "id" not in data
 
+
 @pytest.mark.asyncio
 async def test_employees_get_missing(client, manager_headers):
     resp = await client.get("/employees/12121212", headers=manager_headers)
     assert resp.status_code == 404
     data = resp.json()
     assert "id" not in data
-

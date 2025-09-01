@@ -7,20 +7,26 @@ user with sufficient clearance and assigned (sees those)
 manager with sufficient clearance (sees all permitted)
 admin with high clearance (sees all)
 """
+
 import asyncio
 import logging
+
+import httpx
+
 # import fastapi
 import pytest
-from app.core.middleware import RateLimiter
-import httpx
 from httpx import AsyncClient
+
+from app.core.middleware import RateLimiter
 from app.main import app as fastapi_app
+
 
 @pytest.fixture
 def rate_limiter():
     """Create a fresh rate limiter for each test"""
     limiter = RateLimiter()
     return limiter
+
 
 @pytest.fixture
 async def client(rate_limiter):
@@ -34,6 +40,7 @@ async def client(rate_limiter):
     async with AsyncClient(transport=httpx.ASGITransport(app=fastapi_app), base_url="http://test") as client:
         yield client
 
+
 @pytest.mark.asyncio
 async def test_projects_get(client, manager_headers):
     resp = await client.get("/projects/1", headers=manager_headers)
@@ -42,12 +49,14 @@ async def test_projects_get(client, manager_headers):
     assert data["id"] == 1
     assert data["code"] == "PRJ-RED"
 
+
 @pytest.mark.asyncio
 async def test_projects_get_low_clearance(client, manager_headers_low_clearance):
     resp = await client.get("/projects/1", headers=manager_headers_low_clearance)
     assert resp.status_code == 404
     data = resp.json()
     assert "id" not in data
+
 
 @pytest.mark.asyncio
 async def test_projects_get_admin(client, admin_headers):
@@ -57,6 +66,7 @@ async def test_projects_get_admin(client, admin_headers):
     assert "id" in data
     assert data["code"] == "PRJ-RED"
 
+
 @pytest.mark.asyncio
 async def test_projects_get_user(client, user_headers_low_clearance):
     resp = await client.get("/projects/1", headers=user_headers_low_clearance)
@@ -64,23 +74,16 @@ async def test_projects_get_user(client, user_headers_low_clearance):
     data = resp.json()
     assert "id" not in data
 
+
 @pytest.mark.asyncio
 async def test_projects_get_list_visible_none(client, user_headers_low_clearance):
-    resp = await client.get(
-        "/projects/visible",
-        params={"limit": 10, "offset": 0},
-        headers=user_headers_low_clearance
-    )
+    resp = await client.get("/projects/visible", params={"limit": 10, "offset": 0}, headers=user_headers_low_clearance)
     assert resp.status_code == 404
 
 
 @pytest.mark.asyncio
 async def test_projects_get_list_visible(client, user_headers_mid_clearance):
-    resp = await client.get(
-        "/projects/visible",
-        params={"limit": 5, "offset": 0},
-        headers=user_headers_mid_clearance
-    )
+    resp = await client.get("/projects/visible", params={"limit": 5, "offset": 0}, headers=user_headers_mid_clearance)
     assert resp.status_code == 200
     data = resp.json()
     assert len(data) > 0
@@ -91,12 +94,13 @@ async def test_projects_get_list_visible(client, user_headers_mid_clearance):
 async def test_list_projects_rate_limit(client, user_headers_mid_clearance, rate_limiter):
     """Test rate limiting on project list endpoint"""
     logger = logging.getLogger(__name__)
-    
+
     # Reset rate limiter and force settings refresh
     from app.core.config import get_settings
+
     get_settings.cache_clear()
     rate_limiter.reset()
-    
+
     # First request
     logger.info("Making request 1 of 2")
     response = await client.get("/projects/visible", headers=user_headers_mid_clearance)
@@ -121,6 +125,7 @@ async def test_list_projects_rate_limit(client, user_headers_mid_clearance, rate
     assert error_data["detail"] == "Rate limit exceeded"
     logger.info("Rate limit exceeded as expected on request 3")
 
+
 @pytest.mark.asyncio
 async def test_project_detail_rate_limit(client, user_headers_mid_clearance, rate_limiter):
     logger = logging.getLogger(__name__)
@@ -129,7 +134,14 @@ async def test_project_detail_rate_limit(client, user_headers_mid_clearance, rat
     logger.info("DUMP user_middleware START")
     for i, mw in enumerate(fastapi_app.user_middleware):
         try:
-            logger.info(f"mw[{i}] repr={mw} cls={getattr(mw,'cls',None)} options={getattr(mw,'options',None)} dispatch_attr={getattr(mw,'dispatch', None)}")
+            logger.info(
+                "mw[%s] repr=%s cls=%s options=%s dispatch_attr=%s",
+                i,
+                mw,
+                getattr(mw, "cls", None),
+                getattr(mw, "options", None),
+                getattr(mw, "dispatch", None),
+            )
         except Exception as exc:
             logger.info(f"mw[{i}] error while introspecting: {exc}")
     logger.info("DUMP user_middleware END")
@@ -139,6 +151,7 @@ async def test_project_detail_rate_limit(client, user_headers_mid_clearance, rat
 
     # Now reset and re-log
     from app.core.config import get_settings
+
     get_settings.cache_clear()
     rate_limiter.reset()
     logger.info(f"After reset test limiter id={id(rate_limiter)} cache={rate_limiter._cache}")

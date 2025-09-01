@@ -1,6 +1,7 @@
 """
 Request/Response models for create/list operations.
 """
+
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 

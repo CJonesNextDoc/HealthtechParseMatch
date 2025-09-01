@@ -1,5 +1,6 @@
 # tools/ensure_db.py
 import anyio
+
 from app.db.db_manage import ensure_database
 
 if __name__ == "__main__":

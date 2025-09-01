@@ -1,19 +1,13 @@
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
+# tests/test_config.py
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-# Use SQLite URL for testing
 TEST_DATABASE_URL = "sqlite+aiosqlite:///./test.db"
 
-# Create async engine with SQLite-specific connect args
-test_engine = create_async_engine(
-    TEST_DATABASE_URL,
-    echo=False,
-    connect_args={"check_same_thread": False}
-)
+engine = create_async_engine(TEST_DATABASE_URL, future=True)
 
-# Create async session factory
-TestingSessionLocal = sessionmaker(
-    test_engine, 
-    class_=AsyncSession, 
-    expire_on_commit=False
+# mypy-friendly async session factory (SQLAlchemy 2.x)
+SessionLocal = async_sessionmaker(
+    bind=engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
 )

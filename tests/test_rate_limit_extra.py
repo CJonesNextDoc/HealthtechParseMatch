@@ -1,11 +1,12 @@
 # tests/test_rate_limit_extra_additional.py
 import asyncio
 import logging
-import pytest
-from httpx import AsyncClient, ASGITransport
 
-from app.main import app as fastapi_app
+import pytest
+from httpx import ASGITransport, AsyncClient
+
 from app.core.config import get_settings
+from app.main import app as fastapi_app
 
 # Use fixtures from tests.conftest (pytest will inject them by name)
 # expected fixtures: rate_limiter, user_headers_low_clearance, user_headers_mid_clearance,
@@ -36,6 +37,7 @@ async def test_concurrent_requests_same_user(rate_limiter, user_headers_mid_clea
     rate_limiter.reset()
 
     async with AsyncClient(transport=ASGITransport(app=fastapi_app), base_url="http://test") as client:
+
         async def req():
             resp = await client.get("/health/check", headers=user_headers_mid_clearance)
             return resp.status_code
@@ -49,11 +51,7 @@ async def test_concurrent_requests_same_user(rate_limiter, user_headers_mid_clea
 
 @pytest.mark.asyncio
 async def test_rate_limits_per_role(
-    rate_limiter,
-    user_headers_low_clearance,
-    manager_headers,
-    admin_headers,
-    vendor_headers
+    rate_limiter, user_headers_low_clearance, manager_headers, admin_headers, vendor_headers
 ):
     """Verify configured per-role limits from settings are applied."""
     settings = get_settings()
