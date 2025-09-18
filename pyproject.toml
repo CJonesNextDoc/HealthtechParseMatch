@@ -1,7 +1,7 @@
 [project]
-name = "uscorebridge"
+name = "healthtechparsematch"
 version = "0.2.0"
-description = "USCoreBridge project"
+description = "HealthtechParseMatch project"
 authors = [{ name = "Curtis Jones", email = "curtisjonesknox@gmail.com" }]
 requires-python = ">=3.13"
 readme = "README.md"
