@@ -5,7 +5,7 @@ from app.utils.logger import get_logger
 from app.utils.logging_config import setup_logging
 
 # Configure logging
-setup_logging(log_level="INFO")
+setup_logging(log_level="DEBUG")
 logger = get_logger(__name__)
 
 
@@ -226,10 +226,18 @@ def parse_dob_candidates(text: str, *, today: date | None = None, min_age: int =
         return rtn
 
     parsed_dt = parse_spoken_date(text)
-    parsed_dt["score"] = 0.8 if parsed_dt else 0.0
-    parsed_dt["iso"] = f"{parsed_dt['year']}-{parsed_dt['month']:02d}-{parsed_dt['day']:02d}" if parsed_dt else ""
-    logger.debug(f"Parsed date: {parsed_dt}")
-    rtn = {"dob_candidates": [parsed_dt]} if parsed_dt else {"dob_candidates": []}
+    if parsed_dt and "year" in parsed_dt and "month" in parsed_dt and "day" in parsed_dt:
+        # Adjust score based on transcript length (more words = more specific)
+        base_score = 0.8
+        word_count = len(text.split())
+        adjusted_score = min(0.95, base_score + 0.01 * word_count)  # Cap at 0.95
+        parsed_dt["score"] = adjusted_score
+        parsed_dt["iso"] = f"{parsed_dt['year']}-{parsed_dt['month']:02d}-{parsed_dt['day']:02d}"
+        logger.debug(f"Parsed date: {parsed_dt}")
+        rtn = {"dob_candidates": [parsed_dt]}
+    else:
+        logger.debug(f"Parsed date incomplete: {parsed_dt}")
+        rtn = {"dob_candidates": []}
     return rtn
 
 
@@ -408,6 +416,9 @@ def parse_spoken_date(text: str, attempt: int = 1) -> dict:
     """
     parts: dict[str, int] = {}
 
+    text = text.replace("oh", "zero")
+    logger.debug(f"Text after replace oh: {text}")
+
     # If there are *any* digits in text, convert to word
     if bool(re.search(r"\d", text)):
         DIGIT_TO_WORD = {
@@ -521,7 +532,33 @@ def parse_spoken_date(text: str, attempt: int = 1) -> dict:
                 and tokens[1 + offset] in _WORD_NUM
                 and tokens[2 + offset] in _WORD_NUM
             ):
-                if tokens[0] == "zero" and tokens[1] == "one" and tokens[2] == "zero":
+                fixed_offset = -1
+                if (
+                    tokens[0] in ("two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve")
+                    and tokens[1] in _WORD_NUM
+                    and tokens[3] == "two"
+                    and tokens[4] == "thousand"
+                ):
+                    # tokens[0] is month, tokens[1] and tokens[2] are day
+                    my_day = int(str(_WORD_NUM[tokens[1]]) + str(_WORD_NUM[tokens[2]]))
+                    fixed_offset = 3  # setting up year for tokens[3] -> end
+                    logger.debug("a. this one")
+                elif (
+                    tokens[0] == "zero"
+                    and tokens[1]
+                    in ("two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve")
+                    and tokens[2] in _WORD_NUM
+                    and tokens[3] == "two"
+                    and tokens[4] == "thousand"
+                ):
+                    # tokens[0] and tokens[1] are month, and tokens[2] is day
+                    my_day = _WORD_NUM[tokens[2]]
+                    fixed_offset = 3  # setting up year for tokens[3] -> end
+                    logger.debug("b. this one")
+                elif tokens[0] == "zero" and tokens[1] in _WORD_NUM and tokens[3] == "two" and tokens[4] == "thousand":
+                    my_day = _WORD_NUM[tokens[2]]
+                    logger.debug("c. this one")
+                elif tokens[0] == "zero" and tokens[1] == "one" and tokens[2] == "zero":
                     my_day = _WORD_NUM[tokens[3]]
                 elif tokens[0] == "one" and tokens[1] == "zero" and tokens[2] == "zero":
                     my_day = _WORD_NUM[tokens[3]]
@@ -534,12 +571,18 @@ def parse_spoken_date(text: str, attempt: int = 1) -> dict:
                 logger.debug(f"my_day: {my_day}")
                 if 10 <= my_day <= 31:
                     d = my_day
-                    year_tokens = tokens[3 + offset :]
+                    if fixed_offset > 0:
+                        year_tokens = tokens[fixed_offset:]
+                    else:
+                        year_tokens = tokens[3 + offset :]
                     logger.debug(f"my_day: {d}")
                     logger.debug(f"year_tokens: {year_tokens}")
                 else:
                     d = _WORD_NUM[tokens[1 + offset]]
-                    year_tokens = tokens[2 + offset :]
+                    if fixed_offset > 0:
+                        year_tokens = tokens[fixed_offset:]
+                    else:
+                        year_tokens = tokens[2 + offset :]
                     logger.debug(f"my_day else: {d}")
                     logger.debug(f"year_tokens else: {year_tokens}")
             else:
@@ -634,7 +677,7 @@ def parse_spoken_date(text: str, attempt: int = 1) -> dict:
             if m is not None:
                 parts["day"] = int(m.group())  # type: ignore
                 day_offset = 1
-    logger.debug(f"Day: {parts['day']}")
+    logger.debug(f"Day: {parts.get('day', 'not found')}")
     # 4) Year fallback
     tail2 = tokens[mon_idx + 1 + day_offset :]
     logger.debug(f"tail2: {tail2}")
@@ -650,3 +693,10 @@ def parse_spoken_date(text: str, attempt: int = 1) -> dict:
             logger.debug(" ".join(tail2))
 
     return parts
+
+
+# rsl = parse_spoken_date("Twelve thirteen two thousand two")
+# print(f"result: {rsl}")
+
+rsl = parse_spoken_date("twelve thirteen twenty oh two")
+print(f"result: {rsl}")

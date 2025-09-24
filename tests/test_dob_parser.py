@@ -194,6 +194,15 @@ date_text = [
     {"text_str": "1 1 0 1 5 6", "date_val": date(1956, 11, 1)},
     {"text_str": "one one zero one one nine five six", "date_val": date(1956, 11, 1)},
     {"text_str": "eleven one nineteen fifty six", "date_val": date(1956, 11, 1)},
+    {"text_str": "eleven one two thousand one", "date_val": date(2001, 11, 1)},
+    {"text_str": "twelve thirteen two thousand and two", "date_val": date(2002, 12, 13)},
+    {"text_str": "twelve thirteen two thousand and two", "date_val": date(2002, 12, 13)},
+    {"text_str": "twelve thirteen two thousand two", "date_val": date(2002, 12, 13)},
+    {"text_str": "twelve thirteen twenty oh two", "date_val": date(2002, 12, 13)},
+    {"text_str": "twelve thirteen two zero zero two", "date_val": date(2002, 12, 13)},
+    {"text_str": "twelve thirteen two thousand and twenty", "date_val": date(2020, 12, 13)},
+    {"text_str": "twelve thirteen two thousand twenty", "date_val": date(2020, 12, 13)},
+    {"text_str": "twelve thirteen twenty twenty", "date_val": date(2020, 12, 13)},
 ]
 
 

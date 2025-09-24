@@ -15,7 +15,8 @@ dependencies = [
   "pydantic-settings>=2.0.0",
   "python-dotenv>=1.0.0",
   "pydantic[email]>=2.7",
-  "asgi-lifespan>=1.0.0"
+  "asgi-lifespan>=1.0.0",
+  "boto3>=1.30.0",
 ]
 
 [project.optional-dependencies]
@@ -28,7 +29,10 @@ dev = [
   "mypy>=1.11.0",
   "httpx>=0.27.0",
   "pre-commit>=3.7.0",
-  "aiosqlite>=0.20.0"
+  "aiosqlite>=0.20.0",
+  "sounddevice",
+  "websockets",
+  "numpy",
 ]
 
 [build-system]
