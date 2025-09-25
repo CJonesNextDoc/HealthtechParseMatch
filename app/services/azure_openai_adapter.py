@@ -2,7 +2,7 @@ import json
 import os
 from typing import Any, Dict
 
-import httpx
+from openai import AsyncAzureOpenAI
 
 from .llm_adapter import LLMAdapter
 
@@ -17,27 +17,23 @@ class AzureOpenAIAdapter(LLMAdapter):
         self.endpoint = os.environ["AZURE_OPENAI_ENDPOINT"].rstrip("/")
         self.key = os.environ["AZURE_OPENAI_KEY"]
         self.deployment = os.environ["AZURE_OPENAI_DEPLOYMENT"]
-        self.api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-15-preview")
+        self.api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-12-01-preview")
+        self.client = AsyncAzureOpenAI(
+            api_version=self.api_version,
+            azure_endpoint=self.endpoint,
+            api_key=self.key,
+        )
 
     async def complete_json(self, system: str, user: str, schema: Dict[str, Any]) -> Dict[str, Any]:
-        headers = {"api-key": self.key, "Content-Type": "application/json"}
-        payload = {
-            "model": self.deployment,
-            "messages": [
-                {"role": "system", "content": system},
+        response = await self.client.chat.completions.create(
+            messages=[
+                {"role": "system", "content": system + "\n\nRespond with a valid JSON object."},
                 {"role": "user", "content": user},
             ],
-            # Ask Azure for a JSON object response
-            "response_format": {"type": "json_object"},
-            # (Optional) you can also pass a tool/json_schema when you move to structured outputs
-        }
-        async with httpx.AsyncClient(timeout=30) as client:
-            r = await client.post(
-                f"{self.endpoint}/openai/deployments/{self.deployment}/chat/completions?api-version={self.api_version}",
-                headers=headers,
-                json=payload,
-            )
-            r.raise_for_status()
-            data = r.json()
-        content = data["choices"][0]["message"]["content"]
+            model=self.deployment,
+            # response_format={"type": "json_object"},  # Removed for compatibility
+            max_completion_tokens=16384,
+        )
+        content = response.choices[0].message.content
+        print(f"LLM response content: {content}")  # Debug: print the raw content
         return json.loads(content)

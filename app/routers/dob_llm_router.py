@@ -1,7 +1,7 @@
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from app.services.azure_openai_adapter import AzureOpenAIAdapter
 from app.services.dob_pipeline import choose_dob_with_llm_guardrails
@@ -9,15 +9,9 @@ from app.services.dob_pipeline import choose_dob_with_llm_guardrails
 router = APIRouter(prefix="/dob", tags=["dob"])
 
 
-# NEW: explicit schema for a parsed candidate
-class ParsedCandidate(BaseModel):
-    iso: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
-    score: float = Field(ge=0, le=1)
-
-
 class ChooseIn(BaseModel):
     alternatives: List[str]
-    parsed_candidates: List[ParsedCandidate] = []  # ← now typed correctly
+    parsed_candidates: List[Dict[str, Any]] = []
 
 
 class ChooseOut(BaseModel):
@@ -34,7 +28,7 @@ async def choose(payload: ChooseIn):
 
     winner = await choose_dob_with_llm_guardrails(
         transcript_alternatives=payload.alternatives,
-        parsed_candidates=[c.model_dump() for c in payload.parsed_candidates],
+        parsed_candidates=payload.parsed_candidates,
         llm=llm,
         accept_threshold=0.80,
     )

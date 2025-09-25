@@ -3,6 +3,7 @@ import asyncio
 import json
 import os
 import queue
+import sys
 
 # import threading
 import httpx
@@ -201,5 +202,9 @@ async def stream(answer_type: str = "dob"):
 
 
 if __name__ == "__main__":
-    asyncio.run(stream(answer_type="dob"))
-    # asyncio.run(stream(answer_type="zip"))
+    try:
+        asyncio.run(stream(answer_type="dob"))
+        # asyncio.run(stream(answer_type="zip"))
+    except KeyboardInterrupt:
+        print("Interrupted by user")
+        sys.exit(0)
