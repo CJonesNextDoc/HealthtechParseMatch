@@ -49,6 +49,16 @@ async def post_to_dob_api(transcripts: list[str]):
             print("unique transcripts:", unique_transcripts)
             dob = (await client.post(PARSE_DOB_URL, json={"transcripts": unique_transcripts})).json()
             print("DOB:", dob)
+            # After: dob = (await client.post(PARSE_DOB_URL, json={"transcripts": unique_transcripts})).json()
+            dob_cands = dob.get("dob_candidates", [])
+            choose = (
+                await client.post(
+                    "http://127.0.0.1:8000/dob/choose",
+                    json={"alternatives": unique_transcripts, "parsed_candidates": dob_cands},
+                )
+            ).json()
+            print("DOB (chooser):", choose)
+
         except Exception as e:
             print("Error posting to API:", e)
 
@@ -173,6 +183,7 @@ async def stream(answer_type: str = "dob"):
         print("Stopping stream")
         try:
             stream.stop()
+            stream.abort()  # Ensure stream is aborted
             print("Closing stream")
             stream.close()
         except Exception:
@@ -190,5 +201,5 @@ async def stream(answer_type: str = "dob"):
 
 
 if __name__ == "__main__":
-    # asyncio.run(stream(answer_type="dob"))
-    asyncio.run(stream(answer_type="zip"))
+    asyncio.run(stream(answer_type="dob"))
+    # asyncio.run(stream(answer_type="zip"))
