@@ -25,4 +25,4 @@
 ## Next ideas
 - ✅ Add retry + idempotency key to JSON send.
 - ❓ Optional: FHIR POST /Patient if sandbox allows writes.
-- ❓ Wrap into small "integration gateway" helper with logging and metrics hooks.
+- ✅ Wrap into small "integration gateway" helper with logging and metrics hooks.
