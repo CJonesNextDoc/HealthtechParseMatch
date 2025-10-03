@@ -19,6 +19,9 @@ dependencies = [
   "boto3>=1.30.0",
   "jsonschema>=4.17.3",
   "openai>=1.0.0",
+  "PyJWT",
+  "cryptography",
+  "requests",
 ]
 
 [project.optional-dependencies]

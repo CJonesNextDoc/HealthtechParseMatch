@@ -5,21 +5,63 @@ This project was bootstrapped from: `C:\repo\scaffold\fastapi_demo`.
 # healthtech_parse_match
 
 Generated FastAPI scaffold.
-## Virt Directory and dev mode
+## Development Setup
+
 ```bash
+# Create virtual environment
 python -m venv .venv
-call .venv/scripts/activate.bat
-python -m pip install --upgrade pip setuptools wheel
+# On Windows:
+.venv\Scripts\activate
+# On Unix/Mac:
+source .venv/bin/activate
+
+# Install dependencies
 pip install -e .[dev]
 ```
 
+## CI/CD Pipeline
 
-## Run
+This project uses GitHub Actions for continuous integration and deployment.
+
+### Automated Checks
+- **Code Quality**: Black formatting, Ruff linting, mypy type checking
+- **Security**: Bandit security scanning, Safety dependency checks
+- **Testing**: pytest with coverage reporting (PostgreSQL test database)
+- **Build**: Package building and validation
+
+### Local Validation
+Run the same checks locally before committing:
+
+```bash
+# Run all validation checks
+python scripts/validate.py
+
+# Auto-fix formatting and linting issues
+python scripts/validate.py --fix
+```
+
+### Pre-commit Hooks
+Install pre-commit hooks for automatic validation:
+
+```bash
+pip install pre-commit
+pre-commit install
+pre-commit run --all-files
+```
+
+### Workflows
+- **CI**: Runs on every push/PR to `main` and `dev` branches
+- **Release**: Automated PyPI publishing and production deployment
+- **Dependabot**: Weekly dependency updates
+
+## Run Application
+
 ```bash
 uvicorn app.main:app --reload
 ```
 
 ## Test
+
 ```bash
 pytest
 ```

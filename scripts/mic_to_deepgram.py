@@ -203,8 +203,8 @@ async def stream(answer_type: str = "dob"):
 
 if __name__ == "__main__":
     try:
-        asyncio.run(stream(answer_type="dob"))
-        # asyncio.run(stream(answer_type="zip"))
+        # asyncio.run(stream(answer_type="dob"))
+        asyncio.run(stream(answer_type="zip"))
     except KeyboardInterrupt:
         print("Interrupted by user")
         sys.exit(0)
