@@ -216,3 +216,306 @@ class TestRedoxClient:
         # Token expiring soon (within 30 seconds)
         client._token_expires_at = time.time() + 25
         assert not client._is_token_valid()
+
+    @pytest.mark.skipif(not redox_env_available, reason="REDOX_CLIENT_ID environment variable not set")
+    @pytest.mark.asyncio
+    async def test_post_with_retries_success_first_attempt(self, client):
+        """Test successful POST request on first attempt."""
+        test_url = "https://test.api.example.com/test"
+        test_headers = {"Authorization": "Bearer test-token"}
+        test_payload = {"test": "data"}
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json = Mock(return_value={"status": "success"})
+
+        with patch("httpx.AsyncClient") as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client.post.return_value = mock_response
+            mock_client_class.return_value.__aenter__.return_value = mock_client
+
+            result = await client._post_with_retries(test_url, test_headers, test_payload)
+
+            assert result == mock_response
+            # Should only call once for success
+            assert mock_client.post.call_count == 1
+
+            # Verify idempotency key was added
+            call_args = mock_client.post.call_args
+            headers = call_args[1]["headers"]
+            assert "Idempotency-Key" in headers
+            assert len(headers["Idempotency-Key"]) == 64  # SHA-256 hex length
+
+    @pytest.mark.skipif(not redox_env_available, reason="REDOX_CLIENT_ID environment variable not set")
+    @pytest.mark.asyncio
+    async def test_post_with_retries_custom_idempotency_key(self, client):
+        """Test that custom idempotency keys are preserved."""
+        test_url = "https://test.api.example.com/test"
+        custom_key = "custom-idempotency-key-123"
+        test_headers = {"Authorization": "Bearer test-token", "Idempotency-Key": custom_key}
+        test_payload = {"test": "data"}
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+
+        with patch("httpx.AsyncClient") as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client.post.return_value = mock_response
+            mock_client_class.return_value.__aenter__.return_value = mock_client
+
+            await client._post_with_retries(test_url, test_headers, test_payload)
+
+            # Verify custom key was preserved
+            call_args = mock_client.post.call_args
+            headers = call_args[1]["headers"]
+            assert headers["Idempotency-Key"] == custom_key
+
+    @pytest.mark.skipif(not redox_env_available, reason="REDOX_CLIENT_ID environment variable not set")
+    @pytest.mark.asyncio
+    async def test_post_with_retries_idempotency_key_consistency(self, client):
+        """Test that same payload generates same idempotency key."""
+        test_url = "https://test.api.example.com/test"
+        test_headers = {"Authorization": "Bearer test-token"}
+        test_payload = {"items": ["a", "b", "c"], "user": "test"}
+
+        # Make two requests with same payload
+        with patch("httpx.AsyncClient") as mock_client_class:
+            mock_client = AsyncMock()
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_client.post.return_value = mock_response
+            mock_client_class.return_value.__aenter__.return_value = mock_client
+
+            await client._post_with_retries(test_url, test_headers, test_payload)
+            await client._post_with_retries(test_url, test_headers, test_payload)
+
+            # Both should have same idempotency key
+            call1_args = mock_client.post.call_args_list[0]
+            call2_args = mock_client.post.call_args_list[1]
+
+            key1 = call1_args[1]["headers"]["Idempotency-Key"]
+            key2 = call2_args[1]["headers"]["Idempotency-Key"]
+
+            assert key1 == key2
+            assert len(key1) == 64  # SHA-256 hex
+
+    @pytest.mark.skipif(not redox_env_available, reason="REDOX_CLIENT_ID environment variable not set")
+    @pytest.mark.asyncio
+    async def test_post_with_retries_retry_on_429(self, client):
+        """Test retry logic for 429 (rate limit) responses."""
+        test_url = "https://test.api.example.com/test"
+        test_headers = {"Authorization": "Bearer test-token"}
+        test_payload = {"test": "data"}
+
+        # First call returns 429, second succeeds
+        mock_response_429 = Mock()
+        mock_response_429.status_code = 429
+        mock_response_429.headers = {}  # No Retry-After
+
+        mock_response_200 = Mock()
+        mock_response_200.status_code = 200
+
+        with patch("httpx.AsyncClient") as mock_client_class, patch("asyncio.sleep") as mock_sleep:
+            mock_client = AsyncMock()
+            mock_client.post.side_effect = [mock_response_429, mock_response_200]
+            mock_client_class.return_value.__aenter__.return_value = mock_client
+
+            result = await client._post_with_retries(test_url, test_headers, test_payload)
+
+            assert result == mock_response_200
+            assert mock_client.post.call_count == 2
+            # Should have slept for exponential backoff
+            mock_sleep.assert_called_once()
+
+    @pytest.mark.skipif(not redox_env_available, reason="REDOX_CLIENT_ID environment variable not set")
+    @pytest.mark.asyncio
+    async def test_post_with_retries_retry_after_header(self, client):
+        """Test that Retry-After header is respected."""
+        test_url = "https://test.api.example.com/test"
+        test_headers = {"Authorization": "Bearer test-token"}
+        test_payload = {"test": "data"}
+
+        mock_response_429 = Mock()
+        mock_response_429.status_code = 429
+        mock_response_429.headers = {"Retry-After": "2"}  # 2 seconds
+
+        mock_response_200 = Mock()
+        mock_response_200.status_code = 200
+
+        with (
+            patch("httpx.AsyncClient") as mock_client_class,
+            patch("asyncio.sleep") as mock_sleep,
+            patch("random.uniform", return_value=0),
+        ):
+            mock_client = AsyncMock()
+            mock_client.post.side_effect = [mock_response_429, mock_response_200]
+            mock_client_class.return_value.__aenter__.return_value = mock_client
+
+            result = await client._post_with_retries(test_url, test_headers, test_payload)
+
+            assert result == mock_response_200
+            mock_sleep.assert_called_once_with(2.0)  # Should respect Retry-After
+
+    @pytest.mark.skipif(not redox_env_available, reason="REDOX_CLIENT_ID environment variable not set")
+    @pytest.mark.asyncio
+    async def test_post_with_retries_retry_on_server_errors(self, client):
+        """Test retry logic for 5xx server errors."""
+        test_url = "https://test.api.example.com/test"
+        test_headers = {"Authorization": "Bearer test-token"}
+        test_payload = {"test": "data"}
+
+        # Test various 5xx errors
+        for status_code in [500, 502, 503, 504]:
+            mock_response_error = Mock()
+            mock_response_error.status_code = status_code
+            mock_response_error.headers = {}
+
+            mock_response_200 = Mock()
+            mock_response_200.status_code = 200
+
+            with patch("httpx.AsyncClient") as mock_client_class:
+                mock_client = AsyncMock()
+                mock_client.post.side_effect = [mock_response_error, mock_response_200]
+                mock_client_class.return_value.__aenter__.return_value = mock_client
+
+                result = await client._post_with_retries(test_url, test_headers, test_payload)
+
+                assert result == mock_response_200
+                assert mock_client.post.call_count == 2
+
+    @pytest.mark.skipif(not redox_env_available, reason="REDOX_CLIENT_ID environment variable not set")
+    @pytest.mark.asyncio
+    async def test_post_with_retries_max_attempts_exceeded(self, client):
+        """Test that function fails after max attempts."""
+        test_url = "https://test.api.example.com/test"
+        test_headers = {"Authorization": "Bearer test-token"}
+        test_payload = {"test": "data"}
+
+        mock_response_429 = Mock()
+        mock_response_429.status_code = 429
+        mock_response_429.headers = {}
+
+        with patch("httpx.AsyncClient") as mock_client_class, patch("asyncio.sleep"):
+            mock_client = AsyncMock()
+            # Always return 429
+            mock_client.post.return_value = mock_response_429
+            mock_client_class.return_value.__aenter__.return_value = mock_client
+
+            with pytest.raises(RuntimeError, match="failed after 5 attempts"):
+                await client._post_with_retries(test_url, test_headers, test_payload, max_attempts=5)
+
+            # Should have tried exactly 5 times
+            assert mock_client.post.call_count == 5
+
+    @pytest.mark.skipif(not redox_env_available, reason="REDOX_CLIENT_ID environment variable not set")
+    @pytest.mark.asyncio
+    async def test_post_with_retries_network_error_retry(self, client):
+        """Test retry logic for network errors."""
+        from httpx import RequestError
+
+        test_url = "https://test.api.example.com/test"
+        test_headers = {"Authorization": "Bearer test-token"}
+        test_payload = {"test": "data"}
+
+        mock_response_200 = AsyncMock()
+        mock_response_200.status_code = 200
+
+        with patch("httpx.AsyncClient") as mock_client_class, patch("asyncio.sleep"):
+            mock_client = AsyncMock()
+            # First call raises network error, second succeeds
+            mock_client.post.side_effect = [RequestError("Network timeout"), mock_response_200]
+            mock_client_class.return_value.__aenter__.return_value = mock_client
+
+            result = await client._post_with_retries(test_url, test_headers, test_payload)
+
+            assert result == mock_response_200
+            assert mock_client.post.call_count == 2
+
+    @pytest.mark.skipif(not redox_env_available, reason="REDOX_CLIENT_ID environment variable not set")
+    @pytest.mark.asyncio
+    async def test_post_with_retries_no_retry_on_4xx(self, client):
+        """Test that 4xx errors don't trigger retries."""
+        test_url = "https://test.api.example.com/test"
+        test_headers = {"Authorization": "Bearer test-token"}
+        test_payload = {"test": "data"}
+
+        mock_response_400 = AsyncMock()
+        mock_response_400.status_code = 400  # Client error, shouldn't retry
+
+        with patch("httpx.AsyncClient") as mock_client_class, patch("asyncio.sleep") as mock_sleep:
+            mock_client = AsyncMock()
+            mock_client.post.return_value = mock_response_400
+            mock_client_class.return_value.__aenter__.return_value = mock_client
+
+            result = await client._post_with_retries(test_url, test_headers, test_payload)
+
+            assert result == mock_response_400
+            assert mock_client.post.call_count == 1  # Should not retry
+            mock_sleep.assert_not_called()  # Should not sleep
+
+    @pytest.mark.skipif(not redox_env_available, reason="REDOX_CLIENT_ID environment variable not set")
+    @pytest.mark.asyncio
+    async def test_post_with_retries_exponential_backoff(self, client):
+        """Test exponential backoff timing."""
+        test_url = "https://test.api.example.com/test"
+        test_headers = {"Authorization": "Bearer test-token"}
+        test_payload = {"test": "data"}
+
+        mock_response_429 = AsyncMock()
+        mock_response_429.status_code = 429
+        mock_response_429.headers = {}
+
+        mock_response_200 = AsyncMock()
+        mock_response_200.status_code = 200
+
+        with patch("httpx.AsyncClient") as mock_client_class, patch("asyncio.sleep") as mock_sleep:
+            mock_client = AsyncMock()
+            # Three failures, then success
+            mock_client.post.side_effect = [mock_response_429, mock_response_429, mock_response_429, mock_response_200]
+            mock_client_class.return_value.__aenter__.return_value = mock_client
+
+            result = await client._post_with_retries(test_url, test_headers, test_payload, max_attempts=4, base_delay=0.1)
+
+            assert result == mock_response_200
+            assert mock_client.post.call_count == 4
+
+            # Check exponential backoff: 0.1, 0.2, 0.4 (with jitter)
+            expected_calls = mock_sleep.call_args_list
+            assert len(expected_calls) == 3
+
+            # Each delay should be >= base_delay * 2^(attempt-1)
+            delays = [call[0][0] for call in expected_calls]
+            assert 0.1 <= delays[0] <= 0.125  # 0.1 * (1 + 0.25 jitter)
+            assert 0.2 <= delays[1] <= 0.25  # 0.2 * (1 + 0.25 jitter)
+            assert 0.4 <= delays[2] <= 0.5  # 0.4 * (1 + 0.25 jitter)
+
+    @pytest.mark.skipif(not redox_env_available, reason="REDOX_CLIENT_ID environment variable not set")
+    @pytest.mark.asyncio
+    async def test_send_message_uses_retry_logic(self, client):
+        """Test that send_message uses the retry logic."""
+        test_payload = {"test": "data"}
+
+        # Mock the _post_with_retries method
+        with (
+            patch.object(client, "_post_with_retries") as mock_post_with_retries,
+            patch.object(client, "get_token", return_value="test-token"),
+        ):
+
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.json = Mock(return_value={"status": "success"})
+            mock_post_with_retries.return_value = mock_response
+
+            result = await client.send_message(test_payload)
+
+            assert result == {"status": "success"}
+
+            # Verify _post_with_retries was called with correct parameters
+            mock_post_with_retries.assert_called_once_with(
+                "https://test.api.example.com/message",
+                headers={"Authorization": "Bearer test-token", "Content-Type": "application/json"},
+                json_payload=test_payload,
+                max_attempts=5,
+                base_delay=1.0,
+                timeout=30.0,
+            )
