@@ -1,5 +1,5 @@
 [project]
-name = "healthtechparsematch"
+name = "app"
 version = "0.2.0"
 description = "HealthtechParseMatch project"
 authors = [{ name = "Curtis Jones", email = "curtisjonesknox@gmail.com" }]

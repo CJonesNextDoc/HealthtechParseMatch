@@ -174,7 +174,7 @@ jobs:
       - name: Check build artifacts
         run: |
           ls -la dist/
-          python -c "import healthtechparsematch; print('Package imports successfully')"
+          python -c "import app; print('Package imports successfully')"
 
   # Integration Test (Optional - runs only on main branch)
   integration:
