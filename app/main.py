@@ -112,7 +112,9 @@ async def log_requests(request: Request, call_next: Callable):
 
     except fastapi.exceptions.HTTPException as http_exc:
         # Handle HTTP exceptions separately to preserve status code
-        log_context.update({"status_code": http_exc.status_code, "error": http_exc.detail, "error_type": "HTTPException"})
+        log_context.update(
+            {"status_code": str(http_exc.status_code), "error": http_exc.detail, "error_type": "HTTPException"}
+        )
         logger.info("HTTP exception occurred", extra=log_context)
         raise http_exc  # Re-raise to let FastAPI handle the response
 

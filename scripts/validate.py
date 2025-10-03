@@ -46,20 +46,20 @@ def main():
 
     checks = [
         # Code formatting
-        (["black", "--check", "--diff", "."], "Code formatting (Black)"),
+        ([sys.executable, "-m", "black", "--check", "--diff", "."], "Code formatting (Black)"),
         # Linting
-        (["ruff", "check", "."], "Linting (Ruff)"),
-        # Type checking
-        (["mypy", "."], "Type checking (mypy)"),
+        ([sys.executable, "-m", "ruff", "check", "."], "Linting (Ruff)"),
+        # Type checking (using pre-commit to match CI)
+        ([sys.executable, "-m", "pre_commit", "run", "mypy", "--all-files"], "Type checking (mypy via pre-commit)"),
         # Tests
-        (["pytest", "--tb=short"], "Unit tests"),
+        ([sys.executable, "-m", "pytest", "--tb=short"], "Unit tests"),
     ]
 
     if args.fix:
         # Add fix commands
         fix_checks = [
-            (["black", "."], "Auto-format code (Black)"),
-            (["ruff", "check", ".", "--fix"], "Auto-fix linting issues (Ruff)"),
+            ([sys.executable, "-m", "black", "."], "Auto-format code (Black)"),
+            ([sys.executable, "-m", "ruff", "check", ".", "--fix"], "Auto-fix linting issues (Ruff)"),
         ]
         checks = fix_checks + checks
 

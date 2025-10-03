@@ -7,21 +7,30 @@ import uuid
 import boto3
 
 AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
-S3_BUCKET = os.environ["TRANSCRIBE_INPUT_BUCKET"]
-S3_OUT_BUCKET = os.environ["TRANSCRIBE_OUTPUT_BUCKET"]
+S3_BUCKET = os.getenv("TRANSCRIBE_INPUT_BUCKET")
+S3_OUT_BUCKET = os.getenv("TRANSCRIBE_OUTPUT_BUCKET")
 
-s3 = boto3.client("s3", region_name=AWS_REGION)
-transcribe = boto3.client("transcribe", region_name=AWS_REGION)
+# Initialize clients only if environment variables are set
+s3_client = None
+transcribe_client = None
+
+if S3_BUCKET and S3_OUT_BUCKET:
+    s3_client = boto3.client("s3", region_name=AWS_REGION)
+    transcribe_client = boto3.client("transcribe", region_name=AWS_REGION)
 
 
 def _upload_bytes_to_s3(audio_bytes: bytes, key_prefix="asr/") -> str:
+    if not s3_client or not S3_BUCKET:
+        raise ValueError("AWS S3 client not initialized. Check TRANSCRIBE_INPUT_BUCKET environment variable.")
     key = f"{key_prefix}{uuid.uuid4()}.wav"
-    s3.upload_fileobj(io.BytesIO(audio_bytes), S3_BUCKET, key, ExtraArgs={"ContentType": "audio/wav"})
+    s3_client.upload_fileobj(io.BytesIO(audio_bytes), S3_BUCKET, key, ExtraArgs={"ContentType": "audio/wav"})
     return f"s3://{S3_BUCKET}/{key}"
 
 
 def start_job_with_alternatives(job_name: str, media_uri: str, lang="en-US", max_alts=5):
-    return transcribe.start_transcription_job(
+    if not transcribe_client or not S3_OUT_BUCKET:
+        raise ValueError("AWS Transcribe client not initialized. Check TRANSCRIBE_OUTPUT_BUCKET environment variable.")
+    return transcribe_client.start_transcription_job(
         TranscriptionJobName=job_name,
         LanguageCode=lang,
         Media={"MediaFileUri": media_uri},
@@ -38,7 +47,9 @@ def wait_for_job_and_fetch_alternatives(start_fn, audio_bytes: bytes, max_alts=5
     # Wait
     t0 = time.time()
     while True:
-        job = transcribe.get_transcription_job(TranscriptionJobName=job_name)["TranscriptionJob"]
+        if not transcribe_client:
+            raise ValueError("AWS Transcribe client not initialized.")
+        job = transcribe_client.get_transcription_job(TranscriptionJobName=job_name)["TranscriptionJob"]
         status = job["TranscriptionJobStatus"]
         if status in ("COMPLETED", "FAILED"):
             break

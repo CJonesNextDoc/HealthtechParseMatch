@@ -79,6 +79,7 @@ warn_redundant_casts = true
 strict_equality = true
 disallow_untyped_defs = false
 check_untyped_defs = false
+exclude = ["build/"]
 
 [[tool.mypy.overrides]]
 module = ["fastapi.*"]
@@ -86,4 +87,72 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = ["uvicorn.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["jsonschema"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["asyncpg"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["pytest"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["websockets"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["websockets.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["jwt"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["cryptography.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["numpy"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["anyio"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["asgi_lifespan"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["httpx"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["openai"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["pydantic_settings"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["dotenv"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["boto3"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["sounddevice"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["requests"]
 ignore_missing_imports = true

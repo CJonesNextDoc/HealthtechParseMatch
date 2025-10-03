@@ -21,7 +21,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict
 
 import jwt
-import requests  # type: ignore[import-untyped]
+import requests
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
 from cryptography.hazmat.primitives.asymmetric.ec import SECP384R1, EllipticCurvePrivateNumbers

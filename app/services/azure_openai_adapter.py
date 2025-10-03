@@ -14,10 +14,17 @@ from .llm_adapter import LLMAdapter
 
 class AzureOpenAIAdapter(LLMAdapter):
     def __init__(self):
-        self.endpoint = os.environ["AZURE_OPENAI_ENDPOINT"].rstrip("/")
-        self.key = os.environ["AZURE_OPENAI_KEY"]
-        self.deployment = os.environ["AZURE_OPENAI_DEPLOYMENT"]
+        self.endpoint = os.getenv("AZURE_OPENAI_ENDPOINT", "").rstrip("/")
+        self.key = os.getenv("AZURE_OPENAI_KEY", "")
+        self.deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", "")
         self.api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-12-01-preview")
+
+        if not self.endpoint or not self.key or not self.deployment:
+            raise ValueError(
+                "Azure OpenAI environment variables not set. "
+                "Required: AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_KEY, AZURE_OPENAI_DEPLOYMENT"
+            )
+
         self.client = AsyncAzureOpenAI(
             api_version=self.api_version,
             azure_endpoint=self.endpoint,
