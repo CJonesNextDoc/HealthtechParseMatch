@@ -35,14 +35,17 @@ jobs:
           python -m pip install --upgrade pip
           pip install .[dev]
 
+      - name: Install pre-commit
+        run: pip install pre-commit
+
       - name: Check code formatting with Black
         run: black --check --diff .
 
       - name: Lint with Ruff
         run: ruff check .
 
-      - name: Type check with mypy
-        run: mypy .
+      - name: Type check with mypy (via pre-commit)
+        run: pre-commit run mypy --all-files
 
   # Security Scanning
   security:
