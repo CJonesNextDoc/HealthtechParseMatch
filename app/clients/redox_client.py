@@ -6,8 +6,11 @@ Handles JWT assertion generation, token caching, and automatic refresh.
 All methods are async to work properly with FastAPI and other async contexts.
 """
 
+import asyncio
+import hashlib
 import json
 import os
+import random
 import time
 import uuid
 from datetime import datetime, timezone
@@ -133,6 +136,65 @@ class RedoxClient:
 
         return token_data["access_token"]
 
+    async def _post_with_retries(
+        self,
+        url: str,
+        headers: dict[str, str],
+        json_payload: dict,
+        *,
+        max_attempts: int = 5,
+        base_delay: float = 0.5,
+        timeout: float = 30.0,
+    ) -> httpx.Response:
+        """
+        Async POST with exponential backoff and idempotency.
+        - Adds Idempotency-Key (SHA-256 of sorted JSON) if not already present.
+        - Retries on 429, 500, 502, 503, 504 (uses Retry-After if provided).
+        """
+        # Stable idempotency key for this payload
+        if "Idempotency-Key" not in headers:
+            idem_key = hashlib.sha256(json.dumps(json_payload, sort_keys=True).encode("utf-8")).hexdigest()
+            headers = {**headers, "Idempotency-Key": idem_key}
+
+        attempt = 0
+        last_exc: Exception | None = None
+
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            while attempt < max_attempts:
+                attempt += 1
+                try:
+                    resp = await client.post(url, headers=headers, json=json_payload)
+
+                    # transient server/rate-limit errors -> backoff
+                    if resp.status_code in (429, 500, 502, 503, 504):
+                        retry_after = resp.headers.get("Retry-After")
+                        if retry_after:
+                            try:
+                                delay = float(retry_after)
+                            except ValueError:
+                                delay = base_delay * (2 ** (attempt - 1))
+                        else:
+                            delay = base_delay * (2 ** (attempt - 1))
+                        # add jitter
+                        delay += random.uniform(0, delay * 0.25)
+                        await asyncio.sleep(delay)
+                        continue
+
+                    return resp
+
+                except httpx.RequestError as exc:
+                    # network/transport errors -> retry with backoff
+                    last_exc = exc
+                    if attempt >= max_attempts:
+                        break
+                    delay = base_delay * (2 ** (attempt - 1))
+                    delay += random.uniform(0, delay * 0.25)
+                    await asyncio.sleep(delay)
+
+        if last_exc:
+            raise RuntimeError(f"POST {url} failed after {max_attempts} attempts: {last_exc}") from last_exc
+        raise RuntimeError(f"POST {url} failed after {max_attempts} attempts (no response).")
+
     async def get_token(self) -> str:
         """
         Get a valid access token, using cache if available.
@@ -148,7 +210,7 @@ class RedoxClient:
 
     async def send_message(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Send a message to Redox API endpoint.
+        Send a message to Redox API endpoint with retries and idempotency.
 
         Args:
             payload: Message payload dict
@@ -159,12 +221,14 @@ class RedoxClient:
         token = await self.get_token()
         headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
-        async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.post(
-                f"{self.endpoint_url}/message",
-                headers=headers,
-                json=payload,
-            )
+        resp = await self._post_with_retries(
+            f"{self.endpoint_url}/message",
+            headers=headers,
+            json_payload=payload,
+            max_attempts=5,
+            base_delay=1.0,  # Start with 1 second base delay
+            timeout=30.0,
+        )
 
         if resp.status_code in [200, 201]:
             try:
