@@ -136,11 +136,20 @@ class RateLimitMiddleware:
 
         try:
             # Get caller info first
-            # caller = await get_caller(request.headers.get("X-User-Email"), request.headers.get("X-Role"))
             caller = await get_caller(request)
 
+            # Check if this is a truly authenticated request (has email header)
+            has_auth_headers = bool(
+                request.headers.get("X-User-Email")
+                or request.headers.get("x-user-email")
+                or request.headers.get("X-Role")
+                or request.headers.get("x-role")
+                or request.headers.get("X-User-Role")
+                or request.headers.get("x-user-role")
+            )
+
             # Handle authenticated requests
-            if caller:
+            if has_auth_headers and caller:
                 self.logger.info(f"Authenticated request from {caller['email']}")
 
                 # Skip rate limiting for /health/db only
@@ -158,9 +167,9 @@ class RateLimitMiddleware:
                 return await call_next(request)
 
             self.logger.info(f"Unauthenticated request to {path}")
-            # Allow unauthenticated /health/check
+            # Allow unauthenticated /health/check, /docs, /redoc, /openapi.json, favicon.ico
             if "openapi" in path or "health" in path or "docs" in path or "favicon.ico" in path or "redoc" in path:
-                self.logger.info("Allowing unauthenticated health check")
+                self.logger.info("Allowing unauthenticated access to public endpoint")
                 return await call_next(request)
 
             # Require auth for all other requests
