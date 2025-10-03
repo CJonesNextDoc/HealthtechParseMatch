@@ -1,4 +1,7 @@
 # scripts/redox_assertion.py
+# DEPRECATED: This script has been superseded by app/clients/redox_client.py
+# Use the RedoxClient class for production code and scripts/redox_client_example.py for examples
+#
 # Usage:
 #   python scripts/redox_assertion.py --assertion     # prints client_assertion JWT
 #   python scripts/redox_assertion.py --token         # exchanges for access_token (prints token)
@@ -185,6 +188,10 @@ def send_patient_message(token: str) -> Dict[str, Any]:
 
 # ---------- main ----------
 if __name__ == "__main__":
+    print("⚠️  WARNING: This script is DEPRECATED and will be removed in a future version.", file=sys.stderr)
+    print("   Use app.clients.redox_client.RedoxClient class instead.", file=sys.stderr)
+    print("   See scripts/redox_client_example.py for usage examples.\n", file=sys.stderr)
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--assertion", action="store_true", help="print the client_assertion JWT")
     parser.add_argument("--token", action="store_true", help="exchange assertion for access token")
