@@ -2,7 +2,7 @@
 Tests for Redox Integration Gateway
 """
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -145,7 +145,9 @@ def test_get_redox_gateway():
     """Test the convenience function."""
     from app.integrations.redox_gateway import get_redox_gateway
 
-    gateway = get_redox_gateway()
-    assert isinstance(gateway, RedoxIntegrationGateway)
-    # Should create a new RedoxClient instance
-    assert gateway.client is not None
+    mock_client = MagicMock()
+    with patch("app.integrations.redox_gateway.RedoxClient", return_value=mock_client):
+        gateway = get_redox_gateway()
+        assert isinstance(gateway, RedoxIntegrationGateway)
+        # Should create a new RedoxClient instance
+        assert gateway.client is mock_client
