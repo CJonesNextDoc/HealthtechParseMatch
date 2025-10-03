@@ -519,3 +519,91 @@ class TestRedoxClient:
                 base_delay=1.0,
                 timeout=30.0,
             )
+
+    @pytest.mark.skipif(not redox_env_available, reason="REDOX_CLIENT_ID environment variable not set")
+    @pytest.mark.asyncio
+    async def test_query_fhir_success(self, client):
+        """Test successful FHIR query."""
+        test_resource = "Patient"
+        test_params = {"_count": "1"}
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json = Mock(return_value={"resourceType": "Bundle", "total": 1})
+
+        with patch("httpx.AsyncClient") as mock_client_class, patch.object(client, "get_token", return_value="test-token"):
+
+            mock_http_client = AsyncMock()
+            mock_http_client.get.return_value = mock_response
+            mock_client_class.return_value.__aenter__.return_value = mock_http_client
+
+            result = await client.query_fhir(test_resource, test_params)
+
+            assert result == {"resourceType": "Bundle", "total": 1}
+            mock_http_client.get.assert_called_once_with(
+                "https://api.redoxengine.com/fhir/R4/evening-earth/Development/Patient",
+                headers={"Authorization": "Bearer test-token", "Accept": "application/fhir+json"},
+                params=test_params,
+            )
+
+    @pytest.mark.skipif(not redox_env_available, reason="REDOX_CLIENT_ID environment variable not set")
+    @pytest.mark.asyncio
+    async def test_query_fhir_no_params(self, client):
+        """Test FHIR query without parameters."""
+        test_resource = "Patient/123"
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json = Mock(return_value={"resourceType": "Patient", "id": "123"})
+
+        with patch("httpx.AsyncClient") as mock_client_class, patch.object(client, "get_token", return_value="test-token"):
+
+            mock_http_client = AsyncMock()
+            mock_http_client.get.return_value = mock_response
+            mock_client_class.return_value.__aenter__.return_value = mock_http_client
+
+            result = await client.query_fhir(test_resource)
+
+            assert result == {"resourceType": "Patient", "id": "123"}
+            mock_http_client.get.assert_called_once_with(
+                "https://api.redoxengine.com/fhir/R4/evening-earth/Development/Patient/123",
+                headers={"Authorization": "Bearer test-token", "Accept": "application/fhir+json"},
+                params={},
+            )
+
+    @pytest.mark.skipif(not redox_env_available, reason="REDOX_CLIENT_ID environment variable not set")
+    @pytest.mark.asyncio
+    async def test_query_fhir_error(self, client):
+        """Test FHIR query error handling."""
+        test_resource = "Patient"
+
+        mock_response = Mock()
+        mock_response.status_code = 404
+        mock_response.json = Mock(return_value={"error": "Not Found"})
+
+        with patch("httpx.AsyncClient") as mock_client_class, patch.object(client, "get_token", return_value="test-token"):
+
+            mock_http_client = AsyncMock()
+            mock_http_client.get.return_value = mock_response
+            mock_client_class.return_value.__aenter__.return_value = mock_http_client
+
+            with pytest.raises(RuntimeError, match="FHIR query failed 404"):
+                await client.query_fhir(test_resource)
+
+    @pytest.mark.skipif(not redox_env_available, reason="REDOX_CLIENT_ID environment variable not set")
+    @pytest.mark.asyncio
+    async def test_get_patients(self, client):
+        """Test get_patients convenience method."""
+        test_params = {"_count": "1"}
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json = Mock(return_value={"resourceType": "Bundle", "total": 1})
+
+        with patch.object(client, "query_fhir") as mock_query_fhir:
+            mock_query_fhir.return_value = mock_response.json()
+
+            result = await client.get_patients(test_params)
+
+            assert result == mock_response.json()
+            mock_query_fhir.assert_called_once_with("Patient", test_params)

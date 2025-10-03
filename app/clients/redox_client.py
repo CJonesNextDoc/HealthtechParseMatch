@@ -37,6 +37,7 @@ class RedoxClient:
         private_jwk: Optional[Dict] = None,
         token_url: Optional[str] = None,
         endpoint_url: Optional[str] = None,
+        fhir_url: Optional[str] = None,
         token_cache_duration: int = 300,  # 5 minutes
     ):
         """
@@ -47,6 +48,7 @@ class RedoxClient:
             private_jwk: Private JWK dict (reads from REDOX_PRIVATE_JWK env var if not provided)
             token_url: OAuth token endpoint (reads from REDOX_TOKEN_URL env var if not provided)
             endpoint_url: API endpoint URL (reads from REDOX_ENDPOINT_URL env var if not provided)
+            fhir_url: FHIR base URL (reads from REDOX_FHIR_URL env var if not provided)
             token_cache_duration: How long to cache tokens in seconds (default: 300)
         """
         client_id_env = os.environ.get("REDOX_CLIENT_ID")
@@ -58,6 +60,10 @@ class RedoxClient:
         )
         self.endpoint_url: str = cast(
             str, endpoint_url or os.environ.get("REDOX_ENDPOINT_URL", "https://api.redoxengine.com/v2/endpoint")
+        )
+        self.fhir_url: str = cast(
+            str,
+            fhir_url or os.environ.get("REDOX_FHIR_URL", "https://api.redoxengine.com/fhir/R4/evening-earth/Development"),
         )
 
         # Load JWK
@@ -267,6 +273,46 @@ class RedoxClient:
         }
 
         return await self.send_message(payload)
+
+    async def query_fhir(self, resource: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """
+        Query FHIR resources.
+
+        Args:
+            resource: FHIR resource path (e.g., "Patient", "Patient/123")
+            params: Query parameters dict
+
+        Returns:
+            FHIR response dict
+        """
+        token = await self.get_token()
+        headers = {"Authorization": f"Bearer {token}", "Accept": "application/fhir+json"}
+
+        url = f"{self.fhir_url}/{resource}"
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(url, headers=headers, params=params or {})
+
+            if response.status_code == 200:
+                return response.json()
+            else:
+                try:
+                    error_data = response.json()
+                except Exception:
+                    error_data = {"error": "unknown", "message": response.text}
+                raise RuntimeError(f"FHIR query failed {response.status_code}: {error_data}")
+
+    async def get_patients(self, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """
+        Get Patient resources from FHIR.
+
+        Args:
+            params: Query parameters (e.g., {"_count": "1"})
+
+        Returns:
+            FHIR Bundle with Patient resources
+        """
+        return await self.query_fhir("Patient", params)
 
     # ---------- Helper methods (copied from original script) ----------
 
