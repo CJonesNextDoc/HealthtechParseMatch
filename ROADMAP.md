@@ -16,7 +16,7 @@ This document outlines the development roadmap for HealthtechParseMatch, organiz
   - Structured logging with request IDs via `RequestIdAdapter`
   - Health check endpoint for monitoring
   - `/health/metrics` endpoint exposing Prometheus metrics
-- **Artifacts:** `/metrics` endpoint ready, Grafana dashboard JSON + screenshots (pending)
+- **Artifacts:** Metrics endpoint ready and tested
 - **Why:** observability, SLAs, monitoring/alerting/self-healing
 
 ### 2. CI on GitHub Actions (Build, Test, Lint, Typecheck)
@@ -30,18 +30,32 @@ This document outlines the development roadmap for HealthtechParseMatch, organiz
 - **Why:** Best practices for CI/CD
 
 ### 3. Partner Onboarding Starter Kit (Docs + Postman + Sample App)
-**Status:** 🔄 **IN PROGRESS**
+**Status:** ✅ **COMPLETED** - Comprehensive partner enablement tools
 - docs/partners.md (how to auth, send PatientAdmin, read FHIR)
 - Postman collection for API testing
 - 30-line Python SDK wrapper (pip install -e .)
-- **Next Steps:**
-  - Create docs/partners.md with authentication guide
-  - Export Postman collection for Redox endpoints
-  - Create simple SDK wrapper in separate package
+- **Current Implementation:**
+  - `docs/partners.md`: Comprehensive API documentation with authentication, endpoints, examples, and error handling
+  - `docs/postman_collection.json`: Postman collection with pre-configured requests for all major endpoints
+  - `healthtech_sdk/`: Python SDK package with HealthtechClient class
+    - `__init__.py`: Package exports
+    - `client.py`: 30-line client with methods for health checks, patient matching, employee/project operations
+    - `pyproject.toml`: Package configuration
+    - `README.md`: SDK usage documentation
+- **Artifacts:** Partner documentation, Postman collection, installable Python SDK
+- **Why:** Developer experience, API integration, interview signal for SDK development skills
+
+### 4. Grafana Dashboard for Metrics Visualization
+**Status:** 📋 **PLANNED**
+- Create Grafana dashboard JSON for Redox metrics
+- Include panels for request rates, latency percentiles, success rates
+- Add screenshots to documentation
+- **Why:** Visual demonstration of observability setup, resume-worthy deliverable
+- **Artifacts:** dashboard.json file, screenshots in docs/, Grafana import instructions
 
 ## Tier B — Light Lifts, Great Credibility
 
-### 4. SLOs + Basic Self-Healing
+### 5. SLOs + Basic Self-Healing
 **Status:** 📋 **PLANNED**
 - Define SLOs (e.g., P95 send latency, success-rate)
 - Add simple retry budget metric
@@ -49,12 +63,12 @@ This document outlines the development roadmap for HealthtechParseMatch, organiz
 - Dead-letter capture to file/queue
 - **Artifacts:** docs/slo.md, metrics showing success/latency, retry-budget graph in Grafana
 
-### 5. Containerization + One-Command Dev
+### 6. Containerization + One-Command Dev
 **Status:** 📋 **PLANNED**
 - Dockerfile + docker-compose.yml (service + Prometheus + Grafana)
 - **Artifacts:** `make up`, `make down` or `docker compose up` to demo the whole mini-stack
 
-### 6. Security Doc Stub + Threat Model
+### 7. Security Doc Stub + Threat Model
 **Status:** 📋 **PLANNED**
 - docs/security.md: HIPAA controls (authN/Z, PHI redaction, audit, key mgmt)
 - STRIDE mini-threat model for the integration gateway
@@ -63,13 +77,13 @@ This document outlines the development roadmap for HealthtechParseMatch, organiz
 
 ## Tier C — Bigger Moves (If Time Permits)
 
-### 7. Message Bus
+### 8. Message Bus
 **Status:** 📋 **PLANNED**
 - Redpanda (Kafka-compatible) dev container
 - aiokafka producer/consumer that echoes outbound messages and DLQs failures
 - **Why:** Kafka/RabbitMQ = A thin producer/consumer loop is enough
 
-### 8. Kubernetes
+### 9. Kubernetes
 **Status:** 📋 **PLANNED**
 - Minimal k8s manifest (or Helm chart) for the service + Prometheus Operator scrape config
 - **Why:** Demonstrates orchestration literacy without a big infra lift
@@ -92,3 +106,7 @@ This document outlines the development roadmap for HealthtechParseMatch, organiz
 - Create docs/partners.md
 - Export Postman collection
 - Build simple SDK wrapper
+
+**Then:** Grafana Dashboard for Metrics Visualization (Tier A #4)
+- Create dashboard.json with panels for Redox metrics
+- Add screenshots to documentation

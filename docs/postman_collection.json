@@ -1,0 +1,184 @@
+{
+  "info": {
+    "name": "HealthtechParseMatch API",
+    "description": "API collection for HealthtechParseMatch partner integration",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health Checks",
+      "item": [
+        {
+          "name": "Basic Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health/check",
+              "host": ["{{base_url}}"],
+              "path": ["health", "check"]
+            }
+          }
+        },
+        {
+          "name": "Database Health Check",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Email",
+                "value": "partner@company.com"
+              },
+              {
+                "key": "X-Role",
+                "value": "vendor_app"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/health/db",
+              "host": ["{{base_url}}"],
+              "path": ["health", "db"]
+            }
+          }
+        },
+        {
+          "name": "Metrics Endpoint",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health/metrics",
+              "host": ["{{base_url}}"],
+              "path": ["health", "metrics"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Patient Operations",
+      "item": [
+        {
+          "name": "Match Patient",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Email",
+                "value": "partner@company.com"
+              },
+              {
+                "key": "X-Role",
+                "value": "vendor_app"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dob\": \"1990-05-15\",\n  \"zip\": \"12345\",\n  \"last4_phone\": \"1234\",\n  \"last_name_prefix\": \"Smi\",\n  \"first_initial\": \"J\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/patient/match",
+              "host": ["{{base_url}}"],
+              "path": ["patient", "match"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Employee Operations",
+      "item": [
+        {
+          "name": "Get Employee",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Email",
+                "value": "partner@company.com"
+              },
+              {
+                "key": "X-Role",
+                "value": "vendor_app"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/employees/{{employee_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["employees", "{{employee_id}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Project Operations",
+      "item": [
+        {
+          "name": "List Projects",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Email",
+                "value": "partner@company.com"
+              },
+              {
+                "key": "X-Role",
+                "value": "vendor_app"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/projects",
+              "host": ["{{base_url}}"],
+              "path": ["projects"]
+            }
+          }
+        },
+        {
+          "name": "Get Project Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Email",
+                "value": "partner@company.com"
+              },
+              {
+                "key": "X-Role",
+                "value": "vendor_app"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/projects/{{project_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["projects", "{{project_id}}"]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://api.healthtechparsematch.com",
+      "type": "string"
+    },
+    {
+      "key": "employee_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "project_id",
+      "value": "1",
+      "type": "string"
+    }
+  ]
+}</content>
+<parameter name="filePath">c:\repo\HealthtechParseMatch\docs\partners.md
