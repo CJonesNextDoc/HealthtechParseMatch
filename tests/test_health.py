@@ -1,11 +1,13 @@
 import asyncio
 import logging
+from unittest.mock import AsyncMock
 
 import httpx
 import pytest
 from httpx import AsyncClient
 
 from app.core.middleware import RateLimiter  #  RateLimitMiddleware,
+from app.integrations.redox_gateway import RedoxIntegrationGateway
 from app.main import app as fastapi_app
 
 # Add logger at module level
@@ -57,6 +59,46 @@ async def test_health_db(client, user_headers_low_clearance):
     assert response.status_code == 200
     data = response.json()
     assert data["database"] == "connected"
+
+
+@pytest.mark.asyncio
+async def test_metrics_endpoint(client):
+    """Test Prometheus metrics endpoint"""
+    response = await client.get("/health/metrics")
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "text/plain; charset=utf-8"
+
+    # Check that response contains Prometheus metrics format
+    metrics_text = response.text
+    assert "# HELP" in metrics_text
+    assert "# TYPE" in metrics_text
+
+    # Should contain some basic Python metrics from prometheus_client
+    assert "python_gc_objects_collected_total" in metrics_text
+
+
+@pytest.mark.asyncio
+async def test_metrics_with_redox_calls(client):
+    """Test that Redox metrics appear in Prometheus output after API calls"""
+    # Create a mock client for testing
+    mock_client = AsyncMock()
+    mock_client.send_patient_admin_message = AsyncMock(return_value={"status": "success"})
+
+    # Create gateway with mock client
+    gateway = RedoxIntegrationGateway(mock_client)
+
+    # Make a Redox call to generate metrics
+    await gateway.send_patient_message({"test": "data"})
+
+    # Now check that metrics endpoint includes Redox metrics
+    response = await client.get("/health/metrics")
+    assert response.status_code == 200
+
+    metrics_text = response.text
+
+    # Should contain Redox-specific metrics
+    assert 'redox_requests_total{method="send_patient_admin_message",status="success"} 1.0' in metrics_text
+    assert 'redox_request_duration_seconds_count{method="send_patient_admin_message"} 1.0' in metrics_text
 
 
 @pytest.mark.asyncio

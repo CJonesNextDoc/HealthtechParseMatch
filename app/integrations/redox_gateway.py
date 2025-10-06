@@ -9,10 +9,17 @@ import time
 from collections import defaultdict
 from typing import Any, Dict, Optional
 
+from prometheus_client import Counter, Histogram
+
 from app.clients.redox_client import RedoxClient
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+# Prometheus metrics
+REDOX_REQUESTS_TOTAL = Counter("redox_requests_total", "Total number of Redox API requests", ["method", "status"])
+
+REDOX_REQUEST_LATENCY = Histogram("redox_request_duration_seconds", "Request latency in seconds", ["method"])
 
 
 class RedoxIntegrationGateway:
@@ -21,7 +28,7 @@ class RedoxIntegrationGateway:
 
     Wraps RedoxClient to provide:
     - Structured logging for all API calls
-    - Metrics tracking (call counts, success rates, latency)
+    - Prometheus metrics tracking (call counts, success rates, latency)
     - Convenience methods for common operations
     """
 
@@ -33,6 +40,7 @@ class RedoxIntegrationGateway:
             redox_client: Optional RedoxClient instance. If None, creates a new one.
         """
         self.client = redox_client or RedoxClient()
+        # Legacy metrics for backward compatibility - will be removed once Prometheus is fully integrated
         self._metrics: Dict[str, Dict[str, Any]] = defaultdict(
             lambda: {"calls": 0, "successes": 0, "failures": 0, "total_latency": 0.0}
         )
@@ -101,7 +109,12 @@ class RedoxIntegrationGateway:
             raise
 
         finally:
-            # Update metrics
+            # Update Prometheus metrics
+            status = "success" if success else "failure"
+            REDOX_REQUESTS_TOTAL.labels(method=func_name, status=status).inc()
+            REDOX_REQUEST_LATENCY.labels(method=func_name).observe(latency)
+
+            # Update legacy internal metrics for backward compatibility
             self._metrics[func_name]["calls"] += 1
             self._metrics[func_name]["total_latency"] += latency
             if success:

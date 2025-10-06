@@ -2,9 +2,11 @@
 Tests for Redox Integration Gateway
 """
 
+import re
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from prometheus_client import generate_latest
 
 from app.integrations.redox_gateway import RedoxIntegrationGateway
 
@@ -139,6 +141,66 @@ def test_reset_metrics(gateway):
 
     gateway.reset_metrics()
     assert len(gateway._metrics) == 0
+
+
+@pytest.mark.asyncio
+async def test_prometheus_metrics_success(gateway, mock_redox_client):
+    """Test that Prometheus metrics are recorded for successful calls."""
+    mock_redox_client.send_patient_admin_message.return_value = {"status": "success"}
+
+    # Make a successful call
+    await gateway.send_patient_message({"name": "John Doe"})
+
+    # Check that metrics contain the expected labels and positive values
+    metrics_output = generate_latest().decode("utf-8")
+    assert 'redox_requests_total{method="send_patient_admin_message",status="success"}' in metrics_output
+    assert 'redox_request_duration_seconds_count{method="send_patient_admin_message"}' in metrics_output
+
+    # Extract and verify the counter value is positive
+    counter_match = re.search(
+        r'redox_requests_total\{method="send_patient_admin_message",status="success"\} (\d+\.?\d*)', metrics_output
+    )
+    assert counter_match, "Counter metric not found"
+    counter_value = float(counter_match.group(1))
+    assert counter_value >= 1.0, f"Counter value {counter_value} should be >= 1.0"
+
+
+@pytest.mark.asyncio
+async def test_prometheus_metrics_failure(gateway, mock_redox_client):
+    """Test that Prometheus metrics are recorded for failed calls."""
+    mock_redox_client.send_patient_admin_message.side_effect = RuntimeError("API Error")
+
+    # Make a call that will fail
+    with pytest.raises(RuntimeError):
+        await gateway.send_patient_message({"name": "John Doe"})
+
+    # Check that metrics contain the expected failure labels and positive values
+    metrics_output = generate_latest().decode("utf-8")
+    assert 'redox_requests_total{method="send_patient_admin_message",status="failure"}' in metrics_output
+
+    # Extract and verify the failure counter value is positive
+    counter_match = re.search(
+        r'redox_requests_total\{method="send_patient_admin_message",status="failure"\} (\d+\.?\d*)', metrics_output
+    )
+    assert counter_match, "Failure counter metric not found"
+    counter_value = float(counter_match.group(1))
+    assert counter_value >= 1.0, f"Failure counter value {counter_value} should be >= 1.0"
+
+
+@pytest.mark.asyncio
+async def test_prometheus_metrics_multiple_methods(gateway, mock_redox_client):
+    """Test that Prometheus metrics track different methods separately."""
+    mock_redox_client.send_patient_admin_message.return_value = {"status": "success"}
+    mock_redox_client.get_patients.return_value = {"resourceType": "Bundle"}
+
+    # Make calls to different methods
+    await gateway.send_patient_message({"name": "John Doe"})
+    await gateway.query_patients()
+
+    # Check that metrics contain both methods
+    metrics_output = generate_latest().decode("utf-8")
+    assert 'method="send_patient_admin_message"' in metrics_output
+    assert 'method="get_patients"' in metrics_output
 
 
 def test_get_redox_gateway():
