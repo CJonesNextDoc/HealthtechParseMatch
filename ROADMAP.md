@@ -46,12 +46,24 @@ This document outlines the development roadmap for HealthtechParseMatch, organiz
 - **Why:** Developer experience, API integration, interview signal for SDK development skills
 
 ### 4. Grafana Dashboard for Metrics Visualization
-**Status:** 📋 **PLANNED**
+**Status:** ✅ **COMPLETED** - Comprehensive Grafana dashboard for Redox API observability
 - Create Grafana dashboard JSON for Redox metrics
 - Include panels for request rates, latency percentiles, success rates
 - Add screenshots to documentation
-- **Why:** Visual demonstration of observability setup, resume-worthy deliverable
-- **Artifacts:** dashboard.json file, screenshots in docs/, Grafana import instructions
+- **Current Implementation:**
+  - `docs/grafana_dashboard.json`: Complete dashboard with 8 panels
+    - Request Rate (per second) - time series graph
+    - Success Rate (%) - percentage over time
+    - Request Latency Percentiles - P50/P95/P99 lines
+    - Total Requests by Method - summary table
+    - Error Rate Over Time - failure rate graph
+    - Current Success Rate - stat panel with thresholds
+    - Average Latency (P95) - stat panel with performance thresholds
+    - Total Requests (Last 24h) - volume indicator
+  - `docs/grafana_setup.md`: Complete setup guide with import instructions, troubleshooting, and Docker Compose example
+  - Visualizes `redox_requests_total` counter and `redox_request_duration_seconds` histogram
+- **Artifacts:** dashboard.json file, setup documentation, import instructions
+- **Why:** Visual demonstration of observability setup, resume-worthy deliverable showcasing Grafana/Prometheus expertise
 
 ## Tier B — Light Lifts, Great Credibility
 
