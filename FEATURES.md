@@ -15,10 +15,11 @@ This document tracks features that have been fully implemented and tested. New f
   - Structured JSON logging with correlation IDs via `RequestIdAdapter`
   - Health check endpoint (`/health`) for monitoring service status
   - `/health/metrics` endpoint exposing Prometheus metrics in standard format
-- **Testing:** 11 comprehensive tests in `tests/test_redox_gateway.py`
+- **Testing:** 16 comprehensive tests in `tests/test_redox_gateway.py` and `tests/test_patient_router.py`
 - **Artifacts:**
   - `/health/metrics` endpoint returns Prometheus-compatible metrics
-  - Grafana dashboard JSON + screenshots (pending)
+  - Complete Grafana dashboard with 8 monitoring panels
+  - Docker Compose setup with Prometheus and Grafana containers
   - Structured logs with request correlation IDs
 - **Why:** Observability, SLAs, monitoring/alerting/self-healing
 - **Completion Date:** [Current Session]

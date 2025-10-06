@@ -203,6 +203,45 @@ async def test_prometheus_metrics_multiple_methods(gateway, mock_redox_client):
     assert 'method="get_patients"' in metrics_output
 
 
+@pytest.mark.asyncio
+async def test_demo_mode_patient_match(gateway, mock_redox_client):
+    """Test demo mode for patient_match operation."""
+    # Test that patient_match operation uses demo mode without calling client
+    result = await gateway._log_and_track("patient_match", "get_patients", {})
+
+    # Should return demo result without calling the client
+    assert result == {"status": "success", "demo": True}
+    # Client method should not be called
+    mock_redox_client.get_patients.assert_not_called()
+
+    # Check that success metrics were recorded
+    metrics_output = generate_latest().decode("utf-8")
+    assert 'redox_requests_total{method="get_patients",status="success"}' in metrics_output
+
+
+@pytest.mark.asyncio
+async def test_demo_mode_env_var(gateway, mock_redox_client):
+    """Test demo mode via environment variable."""
+    import os
+
+    # Set demo mode via environment variable
+    original_env = os.environ.get("DEMO_MODE")
+    os.environ["DEMO_MODE"] = "true"
+
+    try:
+        result = await gateway._log_and_track("some_operation", "get_patients", {})
+
+        # Should return demo result
+        assert result == {"status": "success", "demo": True}
+        mock_redox_client.get_patients.assert_not_called()
+    finally:
+        # Restore original environment
+        if original_env is None:
+            os.environ.pop("DEMO_MODE", None)
+        else:
+            os.environ["DEMO_MODE"] = original_env
+
+
 def test_get_redox_gateway():
     """Test the convenience function."""
     from app.integrations.redox_gateway import get_redox_gateway

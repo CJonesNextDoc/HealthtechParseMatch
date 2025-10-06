@@ -1,10 +1,9 @@
 {
-  "dashboard": {
-    "id": null,
-    "title": "HealthtechParseMatch - Redox API Metrics",
-    "tags": ["healthtech", "redox", "prometheus"],
-    "timezone": "browser",
-    "panels": [
+  "id": null,
+  "title": "HealthtechParseMatch - Redox API Metrics",
+  "tags": ["healthtech", "redox", "prometheus"],
+  "timezone": "browser",
+  "panels": [
       {
         "id": 1,
         "title": "Request Rate (per second)",
@@ -277,5 +276,4 @@
     "schemaVersion": 27,
     "version": 0,
     "links": []
-  }
 }

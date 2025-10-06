@@ -61,8 +61,11 @@ This document outlines the development roadmap for HealthtechParseMatch, organiz
     - Average Latency (P95) - stat panel with performance thresholds
     - Total Requests (Last 24h) - volume indicator
   - `docs/grafana_setup.md`: Complete setup guide with import instructions, troubleshooting, and Docker Compose example
+  - `docker-compose.yml`: Multi-container setup with Prometheus and Grafana
+  - `prometheus.yml`: Prometheus configuration for metrics scraping
   - Visualizes `redox_requests_total` counter and `redox_request_duration_seconds` histogram
-- **Artifacts:** dashboard.json file, setup documentation, import instructions
+  - Demo mode implementation for generating test metrics
+- **Artifacts:** dashboard.json file, setup documentation, Docker Compose configuration, import instructions, working demo
 - **Why:** Visual demonstration of observability setup, resume-worthy deliverable showcasing Grafana/Prometheus expertise
 
 ## Tier B — Light Lifts, Great Credibility
@@ -76,9 +79,15 @@ This document outlines the development roadmap for HealthtechParseMatch, organiz
 - **Artifacts:** docs/slo.md, metrics showing success/latency, retry-budget graph in Grafana
 
 ### 6. Containerization + One-Command Dev
-**Status:** 📋 **PLANNED**
+**Status:** ✅ **COMPLETED** - Docker Compose setup for full observability stack
 - Dockerfile + docker-compose.yml (service + Prometheus + Grafana)
-- **Artifacts:** `make up`, `make down` or `docker compose up` to demo the whole mini-stack
+- **Current Implementation:**
+  - `docker-compose.yml`: Multi-container setup with FastAPI, Prometheus, and Grafana
+  - `prometheus.yml`: Prometheus configuration for metrics scraping
+  - One-command startup: `docker-compose up -d`
+  - Integrated with Grafana dashboard for complete observability demo
+- **Artifacts:** `docker-compose up` launches complete monitoring stack, README documentation for setup
+- **Why:** Developer experience, demo capabilities, infrastructure as code
 
 ### 7. Security Doc Stub + Threat Model
 **Status:** 📋 **PLANNED**
@@ -114,11 +123,11 @@ This document outlines the development roadmap for HealthtechParseMatch, organiz
 
 ## Current Focus
 
-**Next Priority:** Complete Partner Onboarding Starter Kit (Tier A #3)
-- Create docs/partners.md
-- Export Postman collection
-- Build simple SDK wrapper
+**All Tier A items completed!** 🎉
 
-**Then:** Grafana Dashboard for Metrics Visualization (Tier A #4)
+**Next Priority:** SLOs + Basic Self-Healing (Tier B #5)
+- Define SLOs for P95 latency and success rates
+- Implement retry budget metrics
+- Add fail-open policies for transient errors
 - Create dashboard.json with panels for Redox metrics
 - Add screenshots to documentation

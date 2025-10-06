@@ -60,6 +60,65 @@ pre-commit run --all-files
 uvicorn app.main:app --reload
 ```
 
+## Observability Stack (Docker + Prometheus + Grafana)
+
+The application includes a complete observability stack for monitoring API performance, request rates, and error tracking.
+
+### Quick Start with Observability
+
+```bash
+# 1. Start the observability stack (Prometheus + Grafana)
+docker-compose up -d
+
+# 2. In another terminal, start the FastAPI application
+uvicorn app.main:app --reload
+
+# 3. Access the services:
+# - FastAPI API: http://localhost:8000
+# - FastAPI Docs: http://localhost:8000/docs
+# - Prometheus: http://localhost:9090
+# - Grafana: http://localhost:3000 (admin/admin)
+```
+
+### Grafana Dashboard
+
+A pre-configured dashboard is available at `docs/grafana_dashboard.json` with 8 monitoring panels:
+
+- **Request Rate (per second)** - Real-time API call frequency
+- **Success Rate (%)** - API reliability metrics
+- **Request Latency Percentiles** - P50, P95, P99 response times
+- **Total Requests by Method** - Usage statistics table
+- **Error Rate Over Time** - Failure trend monitoring
+- **Current Success Rate** - Live reliability indicator
+- **Average Latency (P95)** - Performance threshold monitoring
+- **Total Requests (24h)** - Volume tracking
+
+### Generating Metrics
+
+To populate the dashboard with data:
+
+```bash
+# Make several patient match requests to generate metrics
+for i in {1..5}; do
+  curl -X POST http://localhost:8000/patient/match \
+    -H "Content-Type: application/json" \
+    -d '{"dob":"1990-01-01","zip":"12345"}'
+done
+```
+
+### Docker Services
+
+- **Prometheus** (port 9090): Scrapes metrics from FastAPI `/health/metrics` endpoint
+- **Grafana** (port 3000): Visualizes metrics with pre-configured dashboard
+- **FastAPI** (port 8000): Main application with Prometheus metrics instrumentation
+
+### Configuration Files
+
+- `docker-compose.yml` - Container orchestration
+- `prometheus.yml` - Prometheus scraping configuration
+- `docs/grafana_dashboard.json` - Grafana dashboard definition
+- `docs/grafana_setup.md` - Detailed setup instructions
+
 ## Test
 
 ```bash
