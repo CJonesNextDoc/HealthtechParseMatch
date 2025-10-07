@@ -4,21 +4,41 @@ Integration tests for SLO monitoring and self-healing features.
 These tests run against actual Docker containers to ensure end-to-end functionality.
 """
 
+import importlib.util
+
 import pytest
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+# Check if pytest-docker is available
+pytest_docker_available = importlib.util.find_spec("pytest_docker") is not None
+
 
 @pytest.fixture(scope="session")
 def docker_compose_file(pytestconfig):
     """Get the docker-compose file path."""
+    if not pytest_docker_available:
+        pytest.skip("pytest-docker not available")
     return "docker-compose.yml"
 
 
 @pytest.fixture(scope="session")
 def docker_setup(docker_ip, docker_services):
     """Ensure Docker services are running."""
+    if not pytest_docker_available:
+        pytest.skip("pytest-docker not available")
+
+    # Check if Docker is actually running
+    import subprocess
+
+    try:
+        result = subprocess.run(["docker", "info"], capture_output=True, text=True, timeout=10)
+        if result.returncode != 0:
+            pytest.skip("Docker is not running or not accessible")
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        pytest.skip("Docker command not available")
+
     # Wait for services to be ready
     docker_services.wait_until_responsive(timeout=60.0, pause=0.1, check=lambda: is_responsive(docker_ip, docker_services))
 
@@ -53,7 +73,7 @@ def test_slo_monitoring_end_to_end(docker_setup, docker_ip, docker_services):
     for _ in range(5):
         try:
             # Test patient matching endpoint (uses demo mode)
-            response = requests.post(f"{api_url}/patients/match", json={"text": "John Doe born 12/13/2002"}, timeout=10)
+            response = requests.post(f"{api_url}/patient/match", json={"dob": "1990-01-01", "zip": "12345"}, timeout=10)
             assert response.status_code in [200, 201]
         except requests.exceptions.RequestException:
             # In demo mode, this might not work, but that's ok for this test
@@ -94,7 +114,7 @@ def test_circuit_breaker_under_load(docker_setup, docker_ip, docker_services):
     def make_patient_request():
         """Make a patient matching request."""
         try:
-            response = requests.post(f"{api_url}/patients/match", json={"text": "John Doe born 12/13/2002"}, timeout=5)
+            response = requests.post(f"{api_url}/patient/match", json={"dob": "1990-01-01", "zip": "12345"}, timeout=5)
             return response.status_code
         except requests.exceptions.RequestException as e:
             return str(e)
@@ -139,7 +159,7 @@ def test_prometheus_metrics_collection(docker_setup, docker_ip, docker_services)
     config_yaml = config_data["data"]["yaml"]
 
     # Verify our scrape config is present
-    assert "job_name: 'healthtech-api'" in config_yaml
+    assert "job_name: healthtech-api" in config_yaml
     assert "static_configs:" in config_yaml
 
 
