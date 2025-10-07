@@ -9,8 +9,6 @@ services:
       - DEMO_MODE=true
     volumes:
       - ./logs:/app/logs
-    depends_on:
-      - prometheus
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
