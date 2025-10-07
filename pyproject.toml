@@ -1,7 +1,7 @@
 [project]
-name = "uscorebridge"
+name = "app"
 version = "0.2.0"
-description = "USCoreBridge project"
+description = "HealthtechParseMatch project"
 authors = [{ name = "Curtis Jones", email = "curtisjonesknox@gmail.com" }]
 requires-python = ">=3.13"
 readme = "README.md"
@@ -15,7 +15,14 @@ dependencies = [
   "pydantic-settings>=2.0.0",
   "python-dotenv>=1.0.0",
   "pydantic[email]>=2.7",
-  "asgi-lifespan>=1.0.0"
+  "asgi-lifespan>=1.0.0",
+  "boto3>=1.30.0",
+  "jsonschema>=4.17.3",
+  "openai>=1.0.0",
+  "PyJWT",
+  "cryptography",
+  "requests",
+  "prometheus-client>=0.20.0",
 ]
 
 [project.optional-dependencies]
@@ -23,12 +30,16 @@ dev = [
   "pytest>=8.2.0",
   "pytest-asyncio>=0.24.0",
   "pytest-cov>=4.1.0",
+  "pytest-docker>=1.1.0",
   "black>=24.8.0",
   "ruff>=0.6.0",
   "mypy>=1.11.0",
   "httpx>=0.27.0",
   "pre-commit>=3.7.0",
-  "aiosqlite>=0.20.0"
+  "aiosqlite>=0.20.0",
+  "sounddevice",
+  "websockets",
+  "numpy",
 ]
 
 [build-system]
@@ -45,6 +56,9 @@ app = ["static/*", "static/**/*"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+    "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
+]
 
 [tool.black]
 line-length = 125
@@ -70,6 +84,7 @@ warn_redundant_casts = true
 strict_equality = true
 disallow_untyped_defs = false
 check_untyped_defs = false
+exclude = ["build/"]
 
 [[tool.mypy.overrides]]
 module = ["fastapi.*"]
@@ -77,4 +92,84 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = ["uvicorn.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["jsonschema"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["asyncpg"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["pytest"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["websockets"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["websockets.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["jwt"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["prometheus_client"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["cryptography"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["cryptography.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["numpy"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["anyio"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["asgi_lifespan"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["httpx"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["openai"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["pydantic_settings"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["dotenv"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["boto3"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["sounddevice"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["requests"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["prometheus_client"]
 ignore_missing_imports = true

@@ -3,6 +3,7 @@ import logging
 from typing import Any, Mapping, MutableMapping, Optional, Tuple
 
 from app.core.context import request_id_ctx_var
+from app.core.redaction import redact_text
 
 
 def _check_logger_handlers(name: str) -> None:
@@ -28,6 +29,13 @@ class RequestIdAdapter(logging.LoggerAdapter):
         if rid is not None:
             extra["request_id"] = rid
         kwargs["extra"] = extra
+        # Redact the log message if in production or redact mode
+        # You can check an environment variable or config here
+        import os
+
+        redact_mode = os.environ.get("REDACT_LOGS", "false").lower() == "true"
+        if redact_mode:
+            msg = redact_text(str(msg))
         return msg, kwargs
 
 

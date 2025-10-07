@@ -26,7 +26,10 @@ repos:
     rev: v1.17.1
     hooks:
       - id: mypy
+        args: [--config-file=pyproject.toml]
         # IMPORTANT: Do NOT install sqlalchemy2-stubs with SA 2.x plugin.
         additional_dependencies:
           - sqlalchemy>=2.0
           - pydantic>=2.8
+          - types-requests
+          - types-urllib3

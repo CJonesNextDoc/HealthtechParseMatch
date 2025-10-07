@@ -1,0 +1,18 @@
+# Code owners for automatic PR reviews
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Global owners
+* @CJonesNextDoc
+
+# Backend/API specific
+app/ @CJonesNextDoc
+tests/ @CJonesNextDoc
+
+# Infrastructure/CI
+.github/ @CJonesNextDoc
+.pre-commit-config.yaml @CJonesNextDoc
+pyproject.toml @CJonesNextDoc
+
+# Documentation
+README.md @CJonesNextDoc
+DEVELOPMENT.md @CJonesNextDoc

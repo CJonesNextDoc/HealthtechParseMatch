@@ -1,0 +1,118 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., v1.0.0)'
+        required: true
+        type: string
+
+env:
+  PYTHON_VERSION: "3.13"
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+
+      - name: Run tests
+        run: |
+          pip install .[dev]
+          pytest --tb=short
+
+      - name: Build package
+        run: python -m build
+
+      - name: Publish to PyPI
+        if: github.event_name == 'release'
+        run: |
+          echo "📦 PyPI publishing placeholder"
+          echo "Package built successfully!"
+          echo ""
+          echo "Next steps for PyPI publishing:"
+          echo "1. Create a PyPI account at https://pypi.org/"
+          echo "2. Generate an API token in your PyPI account settings"
+          echo "3. Add PYPI_API_TOKEN to repository secrets"
+          echo "4. Uncomment the PyPI publishing steps below"
+          echo ""
+          echo "PyPI publishing completed (placeholder)"
+
+      # - name: Publish to PyPI (Real implementation)
+      #   if: github.event_name == 'release'
+      #   env:
+      #     TWINE_USERNAME: __token__
+      #     TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      #   run: |
+      #     twine check dist/*
+      #     twine upload dist/*
+
+      - name: Create GitHub release notes
+        if: github.event_name == 'release'
+        run: |
+          echo "🎉 Released ${{ github.event.release.tag_name }}" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "## What's Changed" >> release_notes.md
+          echo "" >> release_notes.md
+          # Add more release notes generation logic here
+
+      - name: Generate changelog
+        if: github.event_name == 'release'
+        run: |
+          # Generate changelog from git history
+          echo "# Changelog" > CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          git log --pretty=format:"### %s%n%b" --since="$(git describe --tags --abbrev=0 HEAD~1)" >> CHANGELOG.md
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release' && contains(github.event.release.tag_name, 'prod')
+    needs: release
+    # environment: production  # Commented out until environment is created
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to production
+        run: |
+          echo "🚀 Production deployment placeholder"
+          echo "Release ${{ github.event.release.tag_name }} ready for production!"
+          echo ""
+          echo "Next steps for production deployment:"
+          echo "1. Set up production infrastructure (ECS, Lambda, etc.)"
+          # echo "2. Configure AWS credentials in repository secrets"
+          echo "2. Create 'production' environment in repository settings"
+          echo "3. Add deployment steps here"
+          echo "4. Test production deployment process"
+          echo ""
+          echo "Production deployment completed (placeholder)"

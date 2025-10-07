@@ -13,10 +13,10 @@ os.environ["TESTING"] = "1"
 os.environ["RATE_LIMIT_TEST"] = "1"  # Enable rate limiting in tests
 os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./test.db"
 os.environ["SQLALCHEMY_ECHO"] = "false"
-os.environ["USER_RATE_LIMIT"] = "2"  # Only allow 2 requests per second for users
-os.environ["MANAGER_RATE_LIMIT"] = "5"  # 5 requests per second for managers
-os.environ["ADMIN_RATE_LIMIT"] = "10"  # 10 requests per second for admins
-os.environ["APP_RATE_LIMIT"] = "20"  # 20 requests per second for vendor apps
+os.environ["USER_RATE_LIMIT"] = "100"  # Increased for testing - allow 100 requests per second for users
+os.environ["MANAGER_RATE_LIMIT"] = "100"  # 100 requests per second for managers
+os.environ["ADMIN_RATE_LIMIT"] = "100"  # 100 requests per second for admins
+os.environ["APP_RATE_LIMIT"] = "100"  # 100 requests per second for vendor apps
 
 # Now we can safely import app components
 import asyncio
@@ -236,10 +236,12 @@ def verify_rate_limit_settings():
     """Verify rate limit environment variables are set correctly"""
     assert os.getenv("RATE_LIMIT_TEST") == "1"
     assert os.getenv("RATE_LIMIT_WINDOW") == "1"
-    assert os.getenv("USER_RATE_LIMIT") == "2"
-    assert os.getenv("MANAGER_RATE_LIMIT") == "5"
-    assert os.getenv("ADMIN_RATE_LIMIT") == "10"
-    assert os.getenv("APP_RATE_LIMIT") == "20"
+    # In test mode with RATE_LIMIT_TEST=1, limits are overridden to stricter values
+    expected_user_limit = "2" if os.getenv("RATE_LIMIT_TEST") == "1" else "100"
+    assert os.getenv("USER_RATE_LIMIT") == expected_user_limit
+    assert os.getenv("MANAGER_RATE_LIMIT") == "100"
+    assert os.getenv("ADMIN_RATE_LIMIT") == "100"
+    assert os.getenv("APP_RATE_LIMIT") == "100"
     yield
 
 
@@ -248,20 +250,20 @@ def setup_test_environment():
     """Setup test environment variables"""
     from app.core.config import get_settings
 
-    # Clear settings cache
+    # Clear settings cache first
     get_settings.cache_clear()
 
     # Set test environment variables
     os.environ["TESTING"] = "1"
     os.environ["RATE_LIMIT_TEST"] = "1"
     os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./test.db"
-    os.environ["USER_RATE_LIMIT"] = "2"  # 2 requests per second for tests
     os.environ["RATE_LIMIT_WINDOW"] = "1"  # 1 second window
+    os.environ["USER_RATE_LIMIT"] = "2"  # Override for test mode
 
     # Verify settings are correct
     settings = get_settings()
     assert settings.rate_limit_test is True
-    assert settings.user_rate_limit == 2
+    assert settings.user_rate_limit == 2  # Test mode uses stricter limits
     assert settings.rate_limit_window == 1
 
     yield

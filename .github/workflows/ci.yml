@@ -1,23 +1,247 @@
 name: CI
 
-on: [push, pull_request]
+on:
+  push:
+    branches: [ main, dev ]
+  pull_request:
+    branches: [ main, dev ]
+
+env:
+  PYTHON_VERSION: "3.13"
 
 jobs:
-  test:
+  # Code Quality Checks
+  quality:
+    name: Code Quality
     runs-on: ubuntu-latest
-    env:
-      DATABASE_URL: "sqlite+aiosqlite:///./test.db"
-      TESTING: "1"
-      SQLALCHEMY_ECHO: "false"
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install .[dev]
-          pip install aiosqlite asgi-lifespan httpx
-      - name: Run tests
-        run: pytest
+
+      - name: Install pre-commit
+        run: pip install pre-commit
+
+      - name: Check code formatting with Black
+        run: black --check --diff .
+
+      - name: Lint with Ruff
+        run: ruff check .
+
+      - name: Type check with mypy (via pre-commit)
+        run: pre-commit run mypy --all-files
+
+  # Security Scanning
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install .[dev]
+
+      - name: Run Bandit security linter
+        run: |
+          pip install bandit
+          bandit -r app/ -f json -o bandit-report.json || true
+          cat bandit-report.json
+
+      - name: Run Safety for dependency vulnerabilities
+        run: |
+          pip install safety
+          safety check --json > safety-report.json || true
+          cat safety-report.json
+
+  # Testing
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    env:
+      DATABASE_URL: "postgresql+asyncpg://postgres:postgres@localhost:5432/test_db"
+      TESTING: "1"
+      SQLALCHEMY_ECHO: "false"
+      RATE_LIMIT_TEST: "1"
+      USER_RATE_LIMIT: "2"
+      MANAGER_RATE_LIMIT: "5"
+      ADMIN_RATE_LIMIT: "10"
+      APP_RATE_LIMIT: "20"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install .[dev]
+
+      - name: Wait for PostgreSQL
+        run: |
+          while ! pg_isready -h localhost -p 5432; do
+            sleep 1
+          done
+
+      - name: Run tests with coverage
+        run: pytest -m "not integration" --cov=app --cov-report=xml --cov-report=term-missing
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+
+  # Build Check
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build
+          pip install .[dev]
+
+      - name: Build package
+        run: python -m build
+
+      - name: Check build artifacts
+        run: |
+          ls -la dist/
+          python -c "import app; print('Package imports successfully')"
+
+  # Integration Test (Optional - runs only on main branch)
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: integration_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    env:
+      DATABASE_URL: "postgresql+asyncpg://postgres:postgres@localhost:5432/integration_db"
+      TESTING: "1"
+      INTEGRATION_TEST: "1"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install .[dev]
+
+      - name: Wait for PostgreSQL
+        run: |
+          while ! pg_isready -h localhost -p 5432; do
+            sleep 1
+          done
+
+      - name: Run integration tests
+        run: pytest tests/ -k "integration" -v
+
+  # Deploy (only on main branch after all checks pass)
+  deploy:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [quality, security, test, build]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to staging
+        run: |
+          echo "🚀 Staging deployment placeholder"
+          echo "All quality checks passed!"
+          echo "Ready for deployment to staging environment"
+          echo ""
+          echo "Next steps:"
+          # echo "1. Configure AWS credentials in repository secrets"
+          echo "1. Set up your staging infrastructure (ECS, Lambda, etc.)"
+          echo "2. Add deployment steps here"
+          echo "3. Test the deployment process"
+          echo ""
+          echo "Deployment completed (placeholder)"

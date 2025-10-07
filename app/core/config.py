@@ -38,9 +38,7 @@ class Settings(BaseSettings):
     testing_flag: bool = Field(default=False, validation_alias="TESTING")
     rate_limit_test: bool = Field(default=False, validation_alias="RATE_LIMIT_TEST")
 
-    model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore", protected_namespaces=(), env_file_exists_ok=True
-    )
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore", protected_namespaces=())
 
     @property
     def is_testing(self) -> bool:

@@ -1,4 +1,6 @@
 from fastapi import APIRouter
+from fastapi.responses import PlainTextResponse
+from prometheus_client import generate_latest
 
 from app.utils.logger import get_logger
 
@@ -18,6 +20,12 @@ async def db_health():
     """Database health check endpoint - requires authentication"""
     logger.info("Database health check", extra={"check_type": "database"})
     return {"status": "healthy", "database": "connected"}
+
+
+@router.get("/metrics")
+async def metrics():
+    """Prometheus metrics endpoint"""
+    return PlainTextResponse(generate_latest())
 
 
 """Leave this alone below."""

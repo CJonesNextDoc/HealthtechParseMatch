@@ -13,7 +13,6 @@ try:
 except Exception:
     pass
 
-import logging
 import os
 from pathlib import Path
 from time import perf_counter
@@ -31,11 +30,16 @@ from app.core.middleware import RateLimitMiddleware
 from app.db.db import create_all, dispose_engine
 from app.db.db_manage import ensure_database
 from app.routers import assignments_router, employees_router, health_router, projects_router
+from app.routers.dob_llm_router import router as dob_llm_router
+from app.routers.dob_router import router as dob_router
+from app.routers.patient_router import router as patient_router
+from app.routers.zip_router import router as zip_router
+from app.utils.logger import get_logger
 from app.utils.logging_config import setup_logging
 
 # Configure logging
 setup_logging(log_level="INFO")
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 async def init_startup():
@@ -71,8 +75,8 @@ async def lifespan(app: FastAPI):
         await shutdown()
 
 
-app = FastAPI(title="FastAPI Demo", lifespan=lifespan)
-router = APIRouter(tags=["FastAPI Demo"])  # Keep this line!
+app = FastAPI(title="Healthtech Parse+Match API")
+router = APIRouter(tags=["FastAPI"])  # Keep this line!
 
 # Move rate limit middleware here - BEFORE logging middleware
 logger.info("Registering rate limit middleware")
@@ -108,7 +112,9 @@ async def log_requests(request: Request, call_next: Callable):
 
     except fastapi.exceptions.HTTPException as http_exc:
         # Handle HTTP exceptions separately to preserve status code
-        log_context.update({"status_code": http_exc.status_code, "error": http_exc.detail, "error_type": "HTTPException"})
+        log_context.update(
+            {"status_code": str(http_exc.status_code), "error": http_exc.detail, "error_type": "HTTPException"}
+        )
         logger.info("HTTP exception occurred", extra=log_context)
         raise http_exc  # Re-raise to let FastAPI handle the response
 
@@ -126,9 +132,9 @@ def custom_openapi():
         return app.openapi_schema
 
     openapi_schema = get_openapi(
-        title="FastAPI Scaffold Demo",
+        title="Healthtech Parse+Match API",
         version="0.2.0",
-        description="A scaffolding template for FastAPI applications with RBAC and structured logging",
+        description="API for parsing and matching healthtech data",
         routes=app.routes,
     )
 
@@ -149,6 +155,11 @@ app.include_router(health_router.router)
 app.include_router(employees_router.router)
 app.include_router(projects_router.router)
 app.include_router(assignments_router.router)
+app.include_router(dob_router)
+app.include_router(zip_router)
+app.include_router(patient_router)
+app.include_router(dob_llm_router)
+
 
 # Mount the static directory
 static_dir = Path(__file__).resolve().parent.parent.joinpath("app", "static")

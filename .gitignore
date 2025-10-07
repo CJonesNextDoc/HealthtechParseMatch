@@ -31,3 +31,8 @@ dist/
 /logs/
 /*.log
 test_output.txt
+
+/secrets/
+/*.json
+*.xml
+.coverage

@@ -1,0 +1,279 @@
+{
+  "id": null,
+  "title": "HealthtechParseMatch - Redox API Metrics",
+  "tags": ["healthtech", "redox", "prometheus"],
+  "timezone": "browser",
+  "panels": [
+      {
+        "id": 1,
+        "title": "Request Rate (per second)",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(redox_requests_total[5m])",
+            "legendFormat": "{{method}}",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 0
+        },
+        "yaxes": [
+          {
+            "unit": "reqps",
+            "label": "Requests/sec"
+          },
+          {
+            "unit": "short"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Success Rate (%)",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(redox_requests_total{status=\"success\"}[5m]) / rate(redox_requests_total[5m]) * 100",
+            "legendFormat": "{{method}} success rate",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 0
+        },
+        "yaxes": [
+          {
+            "unit": "percent",
+            "max": 100,
+            "min": 0
+          },
+          {
+            "unit": "short"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Request Latency Percentiles",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, rate(redox_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "P50 {{method}}",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(redox_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "P95 {{method}}",
+            "refId": "B"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(redox_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "P99 {{method}}",
+            "refId": "C"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 24,
+          "x": 0,
+          "y": 8
+        },
+        "yaxes": [
+          {
+            "unit": "seconds",
+            "label": "Latency"
+          },
+          {
+            "unit": "short"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Total Requests by Method",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "sum(redox_requests_total) by (method)",
+            "legendFormat": "{{method}}",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 16
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "align": "left"
+            }
+          }
+        }
+      },
+      {
+        "id": 5,
+        "title": "Error Rate Over Time",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(redox_requests_total{status=\"failure\"}[5m])",
+            "legendFormat": "{{method}} errors/sec",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 16
+        },
+        "yaxes": [
+          {
+            "unit": "reqps",
+            "label": "Errors/sec"
+          },
+          {
+            "unit": "short"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Current Success Rate by Method",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(rate(redox_requests_total{status=\"success\"}[5m])) / sum(rate(redox_requests_total[5m])) * 100",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {
+          "h": 4,
+          "w": 8,
+          "x": 0,
+          "y": 24
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "red",
+                  "value": null
+                },
+                {
+                  "color": "orange",
+                  "value": 95
+                },
+                {
+                  "color": "green",
+                  "value": 99
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 7,
+        "title": "Average Latency (P95)",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(redox_request_duration_seconds_bucket[5m])) by (le))",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {
+          "h": 4,
+          "w": 8,
+          "x": 8,
+          "y": 24
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "seconds",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "orange",
+                  "value": 2
+                },
+                {
+                  "color": "red",
+                  "value": 5
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 8,
+        "title": "Total Requests (Last 24h)",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(increase(redox_requests_total[24h]))",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {
+          "h": 4,
+          "w": 8,
+          "x": 16,
+          "y": 24
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "blue",
+                  "value": null
+                }
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "timepicker": {},
+    "templating": {
+      "list": []
+    },
+    "annotations": {
+      "list": []
+    },
+    "refresh": "30s",
+    "schemaVersion": 27,
+    "version": 0,
+    "links": []
+}
