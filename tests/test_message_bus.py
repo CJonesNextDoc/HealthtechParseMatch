@@ -193,10 +193,12 @@ class TestMessageBusIntegration:
             # Import here to avoid circular imports in tests
             from app.integrations.redox_gateway import RedoxIntegrationGateway
 
-            gateway = RedoxIntegrationGateway()
+            # Create a mock RedoxClient to avoid environment variable requirements
+            mock_client = MagicMock()
+            gateway = RedoxIntegrationGateway(redox_client=mock_client)
 
             # Mock the client method to simulate success
-            with patch.object(gateway.client, "send_patient_admin_message") as mock_send:
+            with patch.object(gateway.client, "send_patient_admin_message", new_callable=AsyncMock) as mock_send:
                 mock_send.return_value = {"status": "success"}
 
                 # This should trigger message bus sending
@@ -222,10 +224,12 @@ class TestMessageBusIntegration:
 
             from app.integrations.redox_gateway import RedoxIntegrationGateway
 
-            gateway = RedoxIntegrationGateway()
+            # Create a mock RedoxClient to avoid environment variable requirements
+            mock_client = MagicMock()
+            gateway = RedoxIntegrationGateway(redox_client=mock_client)
 
             # Mock the client method to simulate failure
-            with patch.object(gateway.client, "send_patient_admin_message") as mock_send:
+            with patch.object(gateway.client, "send_patient_admin_message", new_callable=AsyncMock) as mock_send:
                 mock_send.side_effect = Exception("API Error")
 
                 # This should trigger DLQ sending
