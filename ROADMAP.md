@@ -101,18 +101,38 @@ This document outlines the development roadmap for HealthtechParseMatch, organiz
 - **Why:** Developer experience, demo capabilities, infrastructure as code
 
 ### 7. Security Doc Stub + Threat Model
-**Status:** 📋 **PLANNED**
+**Status:** ✅ **COMPLETED** - Comprehensive security documentation and threat model
 - docs/security.md: HIPAA controls (authN/Z, PHI redaction, audit, key mgmt)
 - STRIDE mini-threat model for the integration gateway
-- Secrets policy
+- Secrets policy and security monitoring guidelines
+- **Current Implementation:**
+  - `docs/security.md`: Complete security documentation covering:
+    - HIPAA compliance controls (AuthN/AuthZ, PHI handling, network security, key management)
+    - STRIDE threat model for Redox integration gateway (spoofing, tampering, repudiation, information disclosure, DoS, elevation of privilege)
+    - Secrets management policy for API keys, database credentials, and Redox keys
+    - Security monitoring, incident response, and compliance certifications
+    - Security testing procedures and roadmap
+- **Artifacts:** docs/security.md with comprehensive security program documentation
 - **Why:** HIPAA/SOC-2 understanding; threat modeling; security reviews
 
 ## Tier C — Bigger Moves (If Time Permits)
 
 ### 8. Message Bus
-**Status:** 📋 **PLANNED**
-- Redpanda (Kafka-compatible) dev container
+**Status:** ✅ **COMPLETED** - Comprehensive message bus with Redpanda/Kafka integration
+- Redpanda (Kafka-compatible) dev container in docker-compose.yml
 - aiokafka producer/consumer that echoes outbound messages and DLQs failures
+- **Current Implementation:**
+  - `docker-compose.yml`: Added Redpanda service with proper configuration
+  - `app/services/message_bus.py`: Complete MessageBusService with aiokafka integration
+    - Producer for sending outbound messages to Kafka topics
+    - Consumer for processing messages and handling failures
+    - Dead Letter Queue (DLQ) for failed message processing
+    - Integration with Redox gateway for automatic message echoing
+  - `app/integrations/redox_gateway.py`: Modified to send successful messages to message bus and failures to DLQ
+  - `app/main.py`: Message bus lifecycle management (startup/shutdown)
+  - `tests/test_message_bus.py`: Comprehensive test suite for message bus functionality
+  - Kafka configuration in `app/core/config.py`
+- **Artifacts:** Running Redpanda container, message bus service, integration tests, DLQ functionality
 - **Why:** Kafka/RabbitMQ = A thin producer/consumer loop is enough
 
 ### 9. Kubernetes
@@ -134,9 +154,27 @@ This document outlines the development roadmap for HealthtechParseMatch, organiz
 
 ## Current Focus
 
-**Tier B #5 (SLOs + Basic Self-Healing) COMPLETED!** 🎉
+**Tier C #8 (Message Bus) COMPLETED!** 🎉
 
 **Next Priorities:**
-- **Tier B #7:** Security Doc Stub + Threat Model (HIPAA controls, threat modeling)
-- **Tier C #8:** Message Bus (Redpanda/Kafka integration)
 - **Tier C #9:** Kubernetes (minimal k8s manifest/Helm chart)
+- **Item #10:** Deployment Infrastructure Setup (configure CI deploy job)
+- **Item #11:** Integration Tests in CI (optional job)
+
+### 10. Deployment Infrastructure Setup
+**Status:** 📋 **PLANNED**
+- Configure the placeholder deploy job in CI workflow (.github/workflows/ci.yml)
+- Set up AWS ECS, Lambda, or similar cloud deployment target
+- Add deployment scripts and infrastructure as code
+- **Why:** Production deployment capabilities, DevOps skills demonstration
+
+### 11. Integration Tests in CI (Optional)
+**Status:** 📋 **PLANNED**
+- Add integration tests back to CI as optional job (runs on main branch only)
+- Configure Docker-in-Docker or alternative approach for CI environment
+- Ensure tests don't break CI reliability while providing end-to-end validation
+- **Why:** Complete test coverage, confidence in full-stack functionality
+
+---
+
+## Implementation Notes

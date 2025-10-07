@@ -34,6 +34,7 @@ from app.routers.dob_llm_router import router as dob_llm_router
 from app.routers.dob_router import router as dob_router
 from app.routers.patient_router import router as patient_router
 from app.routers.zip_router import router as zip_router
+from app.services.message_bus import start_message_bus, stop_message_bus
 from app.utils.logger import get_logger
 from app.utils.logging_config import setup_logging
 
@@ -69,9 +70,23 @@ async def lifespan(app: FastAPI):
     # Database startup
     await init_startup()
 
+    # Message bus startup
+    try:
+        await start_message_bus()
+        logger.info("Message bus started")
+    except Exception as e:
+        logger.warning(f"Message bus startup failed: {e}")
+
     try:
         yield
     finally:
+        # Message bus shutdown
+        try:
+            await stop_message_bus()
+            logger.info("Message bus stopped")
+        except Exception as e:
+            logger.warning(f"Message bus shutdown failed: {e}")
+
         await shutdown()
 
 

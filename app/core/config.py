@@ -38,6 +38,12 @@ class Settings(BaseSettings):
     testing_flag: bool = Field(default=False, validation_alias="TESTING")
     rate_limit_test: bool = Field(default=False, validation_alias="RATE_LIMIT_TEST")
 
+    # Kafka/Message Bus settings
+    kafka_bootstrap_servers: str = Field(default="localhost:9092", validation_alias="KAFKA_BOOTSTRAP_SERVERS")
+    kafka_outbound_topic: str = Field(default="redox.outbound", validation_alias="KAFKA_OUTBOUND_TOPIC")
+    kafka_dlq_topic: str = Field(default="redox.dlq", validation_alias="KAFKA_DLQ_TOPIC")
+    kafka_consumer_group: str = Field(default="redox-gateway", validation_alias="KAFKA_CONSUMER_GROUP")
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore", protected_namespaces=())
 
     @property

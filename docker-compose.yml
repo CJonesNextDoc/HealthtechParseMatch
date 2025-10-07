@@ -45,6 +45,24 @@ services:
       - '--storage.tsdb.retention.time=200h'
       - '--web.enable-lifecycle'
 
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:latest
+    ports:
+      - "9092:9092"
+      - "9644:9644"
+    environment:
+      - REDPANDA_ADVERTISED_KAFKA_API=localhost:9092
+      - REDPANDA_PRODUCER_BATCH_SIZE=1048576
+      - REDPANDA_CONSUMER_FETCH_MIN_BYTES=1048576
+    volumes:
+      - redpanda_data:/var/lib/redpanda/data
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster info"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
 volumes:
   grafana_data:
   prometheus_data:
+  redpanda_data:

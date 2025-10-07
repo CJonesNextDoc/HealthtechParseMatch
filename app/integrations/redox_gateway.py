@@ -19,6 +19,7 @@ from typing import Any, Callable, Dict, Optional, Type
 from prometheus_client import REGISTRY, Counter, Gauge, Histogram
 
 from app.clients.redox_client import RedoxClient
+from app.services.message_bus import message_bus
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -229,7 +230,7 @@ class RedoxIntegrationGateway:
         self.dlq_path.mkdir(parents=True, exist_ok=True)
 
     def _write_to_dlq(self, operation: str, func_name: str, error: Exception, args: tuple, kwargs: dict):
-        """Write failed request to dead letter queue."""
+        """Write failed request to dead letter queue (file + Kafka)."""
         try:
             dlq_entry = {
                 "timestamp": datetime.now().isoformat(),
@@ -241,6 +242,7 @@ class RedoxIntegrationGateway:
                 "kwargs": kwargs,
             }
 
+            # Write to file-based DLQ
             filename = f"{func_name}_{int(time.time())}.json"
             filepath = self.dlq_path / filename
 
@@ -248,9 +250,19 @@ class RedoxIntegrationGateway:
                 json.dump(dlq_entry, f, indent=2)
 
             logger.warning(
-                f"Request written to DLQ: {filepath}",
+                f"Request written to file DLQ: {filepath}",
                 extra={"operation": operation, "function": func_name, "dlq_file": str(filepath)},
             )
+
+            # Also send to Kafka DLQ
+            try:
+                dlq_key = f"dlq_{func_name}_{int(time.time())}"
+                # Run in background to avoid blocking the error handling
+                asyncio.create_task(message_bus._send_to_dlq(dlq_entry, dlq_key, str(error)))
+                logger.warning(f"Request sent to Kafka DLQ: {dlq_key}")
+            except Exception as kafka_error:
+                logger.error(f"Failed to send to Kafka DLQ: {kafka_error}")
+
         except Exception as dlq_error:
             logger.error(
                 f"Failed to write to DLQ: {dlq_error}",
@@ -336,6 +348,27 @@ class RedoxIntegrationGateway:
                     "latency_ms": round(latency * 1000, 2),
                 },
             )
+
+            # Send successful outbound messages to message bus
+            if success and func_name.startswith(("send_", "create_")):
+                try:
+                    message_key = f"{func_name}_{int(time.time())}"
+                    message_payload = {
+                        "operation": operation,
+                        "function": func_name,
+                        "result": result,
+                        "latency_ms": round(latency * 1000, 2),
+                        "timestamp": datetime.now().isoformat(),
+                    }
+                    # Add relevant args/kwargs to payload for context
+                    if args:
+                        message_payload["args"] = list(args)
+                    if kwargs:
+                        message_payload["kwargs"] = kwargs
+
+                    await message_bus.send_outbound_message(message_payload, message_key)
+                except Exception as msg_error:
+                    logger.warning(f"Failed to send message to bus: {msg_error}")
 
             return result
 
