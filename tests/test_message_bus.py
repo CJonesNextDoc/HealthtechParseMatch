@@ -138,9 +138,15 @@ class TestMessageBusService:
     @pytest.mark.asyncio
     async def test_message_processing(self, message_bus_service):
         """Test message processing from consumer."""
-        with patch("app.services.message_bus.AIOKafkaConsumer") as mock_consumer_class:
+        with (
+            patch("app.services.message_bus.AIOKafkaConsumer") as mock_consumer_class,
+            patch("app.services.message_bus.AIOKafkaProducer") as mock_producer_class,
+        ):
+
             mock_consumer = AsyncMock()
             mock_consumer_class.return_value = mock_consumer
+            mock_producer = AsyncMock()
+            mock_producer_class.return_value = mock_producer
 
             # Mock a message
             mock_message = MagicMock()
@@ -156,7 +162,7 @@ class TestMessageBusService:
 
             mock_consumer.__aiter__ = mock_iter
 
-            # Start the service
+            # Start the service (should not fail with mocked producer/consumer)
             await message_bus_service.start()
 
             # Process messages (should handle one message then exit)
@@ -178,8 +184,11 @@ class TestMessageBusIntegration:
         # This would be an integration test that requires Kafka to be running
         # For now, we'll test the integration points
 
-        with patch("app.services.message_bus.message_bus") as mock_bus:
+        with patch("app.integrations.redox_gateway.message_bus") as mock_bus:
+            # Mock all the methods that might be called
             mock_bus.send_outbound_message = AsyncMock(return_value=True)
+            mock_bus._send_to_dlq = AsyncMock()
+            mock_bus.producer = AsyncMock()  # Mock the producer to avoid initialization checks
 
             # Import here to avoid circular imports in tests
             from app.integrations.redox_gateway import RedoxIntegrationGateway
@@ -205,8 +214,11 @@ class TestMessageBusIntegration:
     @pytest.mark.asyncio
     async def test_redox_gateway_dlq_integration(self):
         """Test that Redox gateway sends failures to DLQ."""
-        with patch("app.services.message_bus.message_bus") as mock_bus:
+        with patch("app.integrations.redox_gateway.message_bus") as mock_bus:
+            # Mock all the methods that might be called
+            mock_bus.send_outbound_message = AsyncMock(return_value=True)
             mock_bus._send_to_dlq = AsyncMock()
+            mock_bus.producer = AsyncMock()  # Mock the producer to avoid initialization checks
 
             from app.integrations.redox_gateway import RedoxIntegrationGateway
 
