@@ -3,12 +3,21 @@ Tests for Redox Integration Gateway
 """
 
 import re
+from collections import defaultdict
+from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from prometheus_client import generate_latest
 
-from app.integrations.redox_gateway import RedoxIntegrationGateway
+from app.integrations.redox_gateway import (
+    CircuitBreaker,
+    CircuitBreakerOpenException,
+    CircuitState,
+    RedoxIntegrationGateway,
+    RetryConfig,
+    retry_with_backoff,
+)
 
 
 @pytest.fixture
@@ -252,3 +261,157 @@ def test_get_redox_gateway():
         assert isinstance(gateway, RedoxIntegrationGateway)
         # Should create a new RedoxClient instance
         assert gateway.client is mock_client
+
+
+@pytest.mark.asyncio
+async def test_dlq_writes_on_failure(gateway, mock_redox_client, tmp_path):
+    """Test that failed requests are written to dead letter queue."""
+    import json
+
+    # Mock the client to raise an exception
+    mock_redox_client.send_patient_admin_message.side_effect = RuntimeError("API Error")
+
+    # Override the DLQ path for testing
+    gateway.dlq_path = tmp_path / "dlq"
+    gateway.dlq_path.mkdir(parents=True, exist_ok=True)
+
+    with pytest.raises(RuntimeError, match="API Error"):
+        await gateway.send_patient_message({"name": "John Doe"})
+
+    # Check that DLQ file was created
+    dlq_files = list(gateway.dlq_path.glob("*.json"))
+    assert len(dlq_files) == 1
+
+    # Check DLQ file contents
+    dlq_file = dlq_files[0]
+    with open(dlq_file, "r") as f:
+        dlq_entry = json.load(f)
+
+    assert dlq_entry["operation"] == "send patient NewPatient message"
+    assert dlq_entry["function"] == "send_patient_admin_message"
+    assert dlq_entry["error_type"] == "RuntimeError"
+    assert dlq_entry["error_message"] == "API Error"
+    assert "timestamp" in dlq_entry
+    assert dlq_entry["args"] == [{"name": "John Doe"}, "NewPatient"]
+    assert dlq_entry["kwargs"] == {}
+
+
+@pytest.mark.asyncio
+async def test_circuit_breaker_open_exception_handling(gateway, mock_redox_client):
+    """Test that circuit breaker open exceptions are properly handled."""
+    # Get the circuit breaker for this method
+    circuit_breaker = gateway._circuit_breakers["send_patient_admin_message"]
+
+    # Force circuit breaker to open state and ensure it won't attempt reset
+    circuit_breaker.state = CircuitState.OPEN
+    circuit_breaker.last_failure_time = datetime.now()  # Recent failure, won't attempt reset
+
+    # This should raise CircuitBreakerOpenException without calling the client
+    with pytest.raises(CircuitBreakerOpenException, match="Circuit breaker is OPEN"):
+        await gateway.send_patient_message({"name": "John Doe"})
+
+    # Client should not be called
+    mock_redox_client.send_patient_admin_message.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_retry_exhausted_exception_handling(gateway, mock_redox_client):
+    """Test that retry exhausted exceptions are properly handled."""
+    # Mock the client to always raise a retryable exception
+    mock_redox_client.send_patient_admin_message.side_effect = ConnectionError("Network Error")
+
+    with pytest.raises(ConnectionError, match="Network Error"):
+        await gateway.send_patient_message({"name": "John Doe"})
+
+
+@pytest.mark.asyncio
+async def test_circuit_breaker_state_transitions():
+    """Test circuit breaker state transitions and internal methods."""
+    cb = CircuitBreaker(failure_threshold=2, recovery_timeout=30)
+    cb.set_method("test_method")
+
+    # Test initial state
+    assert cb.state == CircuitState.CLOSED
+    assert cb.failure_count == 0
+
+    # Test _on_failure transitions
+    cb._on_failure()
+    assert cb.failure_count == 1
+    assert cb.state == CircuitState.CLOSED
+
+    cb._on_failure()
+    assert cb.failure_count == 2
+    assert cb.state == CircuitState.OPEN
+
+    # Test _should_attempt_reset
+    assert not cb._should_attempt_reset()  # Too soon
+
+    # Simulate time passing
+    cb.last_failure_time = datetime.now() - timedelta(seconds=31)
+    assert cb._should_attempt_reset()  # Recovery timeout passed
+
+    # Test _on_success resets state
+    cb._on_success()
+    assert cb.failure_count == 0
+    assert cb.state == CircuitState.CLOSED
+
+
+@pytest.mark.asyncio
+async def test_retry_with_jitter():
+    """Test that retry logic includes jitter."""
+    import asyncio
+
+    call_count = 0
+
+    async def failing_func():
+        nonlocal call_count
+        call_count += 1
+        if call_count < 3:
+            raise ConnectionError("Temporary failure")
+        return "success"
+
+    # Mock sleep to capture delay times
+    sleep_times = []
+    original_sleep = asyncio.sleep
+
+    async def mock_sleep(delay):
+        sleep_times.append(delay)
+        await original_sleep(0.001)  # Minimal actual sleep
+
+    with patch("asyncio.sleep", side_effect=mock_sleep):
+        result = await retry_with_backoff(failing_func, RetryConfig(max_attempts=3, base_delay=1.0, jitter=True))
+
+    assert result == "success"
+    assert call_count == 3
+    assert len(sleep_times) == 2  # Two retries
+
+    # With jitter enabled, delays should vary
+    # Base delays would be 1.0 and 2.0, but with jitter they should be different
+    assert sleep_times[0] != 1.0 or sleep_times[1] != 2.0
+
+
+@pytest.mark.asyncio
+async def test_dlq_write_failure_handling(gateway, mock_redox_client, tmp_path):
+    """Test that DLQ write failures are handled gracefully."""
+    # Mock the client to raise an exception
+    mock_redox_client.send_patient_admin_message.side_effect = RuntimeError("API Error")
+
+    # Override DLQ path to a location that will cause write failure
+    gateway.dlq_path = tmp_path / "nonexistent" / "dlq"  # Directory doesn't exist and can't be created
+
+    with pytest.raises(RuntimeError, match="API Error"):
+        await gateway.send_patient_message({"name": "John Doe"})
+
+    # Should still raise the original error, not a DLQ error
+
+
+def test_metrics_calculation_edge_cases(gateway):
+    """Test metrics calculation with zero calls."""
+    # Reset metrics
+    gateway._metrics = defaultdict(lambda: {"calls": 0, "successes": 0, "failures": 0, "total_latency": 0.0})
+
+    # Test with zero calls - should return empty dict since no methods have been called
+    metrics = gateway.get_metrics()
+    assert isinstance(metrics, dict)
+    # When no methods have been called, metrics should be empty
+    assert len(metrics) == 0

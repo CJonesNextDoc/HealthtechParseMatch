@@ -68,7 +68,7 @@ This document outlines the development roadmap for HealthtechParseMatch, organiz
 - **Artifacts:** dashboard.json file, setup documentation, Docker Compose configuration, import instructions, working demo
 - **Why:** Visual demonstration of observability setup, resume-worthy deliverable showcasing Grafana/Prometheus expertise
 
-## Tier B — Light Lifts, Great Credibility
+## Tier B — Light Lifts, Great Impact
 
 ### 5. SLOs + Basic Self-Healing
 **Status:** 📋 **PLANNED**

@@ -31,3 +31,5 @@ repos:
         additional_dependencies:
           - sqlalchemy>=2.0
           - pydantic>=2.8
+          - types-requests
+          - types-urllib3

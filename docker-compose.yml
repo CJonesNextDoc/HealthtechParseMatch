@@ -1,5 +1,22 @@
 version: '3.8'
 services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - PROMETHEUS_MULTIPROC_DIR=/tmp
+      - DEMO_MODE=true
+    volumes:
+      - ./logs:/app/logs
+    depends_on:
+      - prometheus
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   grafana:
     image: grafana/grafana:latest
     ports:
@@ -8,6 +25,9 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=admin
     volumes:
       - grafana_data:/var/lib/grafana
+      - ./grafana-dashboard.json:/etc/grafana/provisioning/dashboards/slo-dashboard.json
+      - ./grafana-datasource.yml:/etc/grafana/provisioning/datasources/prometheus.yml
+      - ./grafana-dashboard-provider.yml:/etc/grafana/provisioning/dashboards/dashboard-provider.yml
     depends_on:
       - prometheus
 
