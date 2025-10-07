@@ -136,9 +136,23 @@ This document outlines the development roadmap for HealthtechParseMatch, organiz
 - **Why:** Kafka/RabbitMQ = A thin producer/consumer loop is enough
 
 ### 9. Kubernetes
-**Status:** 📋 **PLANNED**
-- Minimal k8s manifest (or Helm chart) for the service + Prometheus Operator scrape config
-- **Why:** Demonstrates orchestration literacy without a big infra lift
+**Status:** ✅ **COMPLETED** - Basic Kubernetes manifests and production preparation
+- Minimal k8s manifest (deployment + service + configmap + secret)
+- Production-ready Dockerfile with multi-stage build and non-root user
+- PostgreSQL support added to configuration
+- Health checks, resource limits, and readiness/liveness probes
+- ConfigMap and Secret management for environment configuration
+- **Current Implementation:**
+  - `k8s/deployment.yaml`: App deployment with 2 replicas, health checks, resource limits
+  - `k8s/service.yaml`: ClusterIP service for internal access
+  - `k8s/configmap.yaml`: Environment configuration
+  - `k8s/secret.yaml`: Sensitive data management
+  - `k8s/README.md`: Complete deployment guide
+  - Updated `Dockerfile`: Multi-stage build with security best practices
+  - Updated `docker-compose.yml`: PostgreSQL for production testing
+  - Enhanced `app/core/config.py`: Environment variable support for production
+- **Artifacts:** Complete Kubernetes deployment package ready for production
+- **Why:** Container orchestration literacy, production deployment capabilities
 
 ---
 
@@ -154,10 +168,9 @@ This document outlines the development roadmap for HealthtechParseMatch, organiz
 
 ## Current Focus
 
-**Tier C #8 (Message Bus) COMPLETED and moved to FEATURES.md!** 🎉
+**Tier C #9 (Kubernetes) COMPLETED!** 🎉
 
 **Next Priorities:**
-- **Tier C #9:** Kubernetes (minimal k8s manifest/Helm chart)
 - **Item #10:** Deployment Infrastructure Setup (configure CI deploy job)
 - **Item #11:** Integration Tests in CI (optional job)
 
