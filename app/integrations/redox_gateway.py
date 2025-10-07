@@ -34,8 +34,9 @@ def _get_or_create_metric(metric_class, name, description, labelnames=None, regi
             return metric_class(name, description, registry=registry or REGISTRY)
     except ValueError as e:
         if "Already registered" in str(e):
-            # Metric already exists, get it from registry
-            return REGISTRY._names_to_collectors[name]
+            # Metric already exists, return None to indicate it should be skipped
+            logger.debug(f"Metric {name} already registered, skipping")
+            return None
         raise
 
 
@@ -99,17 +100,29 @@ class CircuitBreaker:
             if self._should_attempt_reset():
                 self.state = CircuitState.HALF_OPEN
             else:
-                REDOX_CIRCUIT_BREAKER_STATE.labels(method=self.method_name).set(1)
+                try:
+                    if REDOX_CIRCUIT_BREAKER_STATE:
+                        REDOX_CIRCUIT_BREAKER_STATE.labels(method=self.method_name).set(1)
+                except Exception:
+                    pass
                 raise CircuitBreakerOpenException(f"Circuit breaker is OPEN for {self.method_name}")
 
         try:
             result = await func(*args, **kwargs)
             self._on_success()
-            REDOX_CIRCUIT_BREAKER_STATE.labels(method=self.method_name).set(0)
+            try:
+                if REDOX_CIRCUIT_BREAKER_STATE:
+                    REDOX_CIRCUIT_BREAKER_STATE.labels(method=self.method_name).set(0)
+            except Exception:
+                pass
             return result
         except self.expected_exception as e:
             self._on_failure()
-            REDOX_CIRCUIT_BREAKER_STATE.labels(method=self.method_name).set(1)
+            try:
+                if REDOX_CIRCUIT_BREAKER_STATE:
+                    REDOX_CIRCUIT_BREAKER_STATE.labels(method=self.method_name).set(1)
+            except Exception:
+                pass
             raise e
 
     def _should_attempt_reset(self) -> bool:
@@ -349,9 +362,12 @@ class RedoxIntegrationGateway:
 
         finally:
             # Update Prometheus metrics
-            status = "success" if success else "failure"
-            REDOX_REQUESTS_TOTAL.labels(method=func_name, status=status).inc()
-            REDOX_REQUEST_LATENCY.labels(method=func_name).observe(latency)
+            try:
+                status = "success" if success else "failure"
+                REDOX_REQUESTS_TOTAL.labels(method=func_name, status=status).inc()
+                REDOX_REQUEST_LATENCY.labels(method=func_name).observe(latency)
+            except Exception as e:
+                logger.debug(f"Failed to update prometheus metrics: {e}")
 
             # Update legacy internal metrics for backward compatibility
             self._metrics[func_name]["calls"] += 1
