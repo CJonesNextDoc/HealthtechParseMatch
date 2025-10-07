@@ -154,7 +154,7 @@ This document outlines the development roadmap for HealthtechParseMatch, organiz
 
 ## Current Focus
 
-**Tier C #8 (Message Bus) COMPLETED!** 🎉
+**Tier C #8 (Message Bus) COMPLETED and moved to FEATURES.md!** 🎉
 
 **Next Priorities:**
 - **Tier C #9:** Kubernetes (minimal k8s manifest/Helm chart)

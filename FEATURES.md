@@ -79,5 +79,41 @@ This document tracks features that have been fully implemented and tested. New f
   - Grafana dashboard JSON for SLO visualization
   - Comprehensive test coverage (97% line coverage)
 - **Why:** Production-grade reliability, fault tolerance, automated recovery, SLO monitoring
-- **Completion Date:** October 6, 2025</content>
-<parameter name="filePath">c:\repo\HealthtechParseMatch\ROADMAP.md
+- **Completion Date:** October 6, 2025
+
+## Tier C — Completed Advanced Features
+
+### 8. Message Bus
+**Status:** ✅ **COMPLETED** - Comprehensive message bus with Redpanda/Kafka integration
+- **Implementation Details:**
+  - **Redpanda Integration:** Kafka-compatible message broker added to `docker-compose.yml`
+    - Single-node Redpanda container with proper networking and health checks
+    - Topics auto-creation for outbound messages and dead letter queue
+  - **MessageBusService Class:** Complete async message bus implementation in `app/services/message_bus.py`
+    - `send_outbound_message()`: Producer for sending successful API responses to Kafka
+    - `process_messages()`: Consumer loop for monitoring and processing messages
+    - `_send_to_dlq()`: Dead letter queue handler for failed message processing
+    - Lifecycle management with FastAPI startup/shutdown events
+  - **Redox Gateway Integration:** Enhanced `app/integrations/redox_gateway.py`
+    - Automatic message echoing for successful outbound operations
+    - DLQ integration for failed requests with structured error context
+    - Async message sending without blocking API responses
+  - **Configuration:** Kafka settings added to `app/core/config.py`
+    - Bootstrap servers, topic names, consumer group configuration
+    - Environment-based configuration for different deployment scenarios
+  - **Error Handling:** Comprehensive failure management
+    - Circuit breaker integration for message bus operations
+    - Structured error logging with correlation IDs
+    - Graceful degradation when message bus is unavailable
+- **Testing:** 15 comprehensive tests in `tests/test_message_bus.py`
+  - Unit tests for MessageBusService with mocked Kafka connections
+  - Integration tests for Redox gateway message bus integration
+  - Async test patterns with pytest-asyncio
+- **Artifacts:**
+  - Running Redpanda container in Docker Compose stack
+  - Message bus service with producer/consumer loops
+  - DLQ functionality for operational analysis
+  - Integration with existing Redox gateway for automatic message echoing
+  - Complete test coverage for message bus operations
+- **Why:** Event-driven architecture, message queuing, operational monitoring, Kafka/RabbitMQ expertise
+- **Completion Date:** October 6, 2025
