@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: healthtech-api
+  labels:
+    app: healthtech-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: healthtech-api
+  template:
+    metadata:
+      labels:
+        app: healthtech-api
+    spec:
+      containers:
+      - name: api
+        image: healthtech/api:latest  # Replace with your actual image
+        ports:
+        - containerPort: 8000
+          name: http
+        env:
+        - name: DATABASE_URL
+          value: "postgresql+asyncpg://healthtech:$(DB_PASSWORD)@postgres:5432/healthtech"
+        - name: KAFKA_BOOTSTRAP_SERVERS
+          value: "redpanda:9092"
+        - name: KAFKA_OUTBOUND_TOPIC
+          value: "redox.outbound"
+        - name: KAFKA_DLQ_TOPIC
+          value: "redox.dlq"
+        - name: KAFKA_CONSUMER_GROUP
+          value: "redox-gateway"
+        # ConfigMap values
+        - name: ENVIRONMENT
+          valueFrom:
+            configMapKeyRef:
+              name: healthtech-config
+              key: ENVIRONMENT
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: healthtech-config
+              key: LOG_LEVEL
+        - name: LOG_FORMAT
+          valueFrom:
+            configMapKeyRef:
+              name: healthtech-config
+              key: LOG_FORMAT
+        - name: DEMO_MODE
+          valueFrom:
+            configMapKeyRef:
+              name: healthtech-config
+              key: DEMO_MODE
+        - name: PROMETHEUS_MULTIPROC_DIR
+          valueFrom:
+            configMapKeyRef:
+              name: healthtech-config
+              key: PROMETHEUS_MULTIPROC_DIR
+        # Secret values
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: healthtech-secrets
+              key: DB_PASSWORD
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health/check
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health/check
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        volumeMounts:
+        - name: logs
+          mountPath: /app/logs
+      volumes:
+      - name: logs
+        emptyDir: {}  # In production, use PersistentVolumeClaim

@@ -11,10 +11,10 @@ class Settings(BaseSettings):
     version: str = "0.2.0"
     environment: str = "development"
 
-    # Database settings - preserve SQLite testing support
-    database_url: str = "sqlite+aiosqlite:///./test.db"
-    sqlalchemy_echo: bool = False
-    testing: bool = False
+    # Database settings - support both SQLite (testing) and PostgreSQL (production)
+    database_url: str = Field(default="sqlite+aiosqlite:///./test.db", validation_alias="DATABASE_URL")
+    sqlalchemy_echo: bool = Field(default=False, validation_alias="SQLALCHEMY_ECHO")
+    testing: bool = Field(default=False, validation_alias="TESTING")
     min_connections: int = 5
     max_connections: int = 20
 
@@ -34,9 +34,14 @@ class Settings(BaseSettings):
     log_format: str = "json"
     log_file: str = "app.log"
 
-    # Testing flags
-    testing_flag: bool = Field(default=False, validation_alias="TESTING")
-    rate_limit_test: bool = Field(default=False, validation_alias="RATE_LIMIT_TEST")
+    # Production settings
+    workers: int = Field(default=1, validation_alias="WORKERS")  # For gunicorn in production
+    host: str = Field(default="0.0.0.0", validation_alias="HOST")
+    port: int = Field(default=8000, validation_alias="PORT")
+
+    # Kubernetes readiness/liveness probe settings
+    readiness_path: str = "/health/check"
+    liveness_path: str = "/health/check"
 
     # Kafka/Message Bus settings
     kafka_bootstrap_servers: str = Field(default="localhost:9092", validation_alias="KAFKA_BOOTSTRAP_SERVERS")

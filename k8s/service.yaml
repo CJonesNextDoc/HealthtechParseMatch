@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: healthtech-api
+  labels:
+    app: healthtech-api
+spec:
+  selector:
+    app: healthtech-api
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8000
+    protocol: TCP
+  type: ClusterIP  # Use LoadBalancer or Ingress for external access
