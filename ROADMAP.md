@@ -71,12 +71,23 @@ This document outlines the development roadmap for HealthtechParseMatch, organiz
 ## Tier B — Light Lifts, Great Impact
 
 ### 5. SLOs + Basic Self-Healing
-**Status:** 📋 **PLANNED**
-- Define SLOs (e.g., P95 send latency, success-rate)
-- Add simple retry budget metric
-- Fail-open policy for known transient errors
-- Dead-letter capture to file/queue
-- **Artifacts:** docs/slo.md, metrics showing success/latency, retry-budget graph in Grafana
+**Status:** ✅ **COMPLETED** - Comprehensive SLO monitoring with circuit breaker and retry logic
+- Define SLOs (99.5% success rate, P95 latency < 5s)
+- Implement circuit breaker pattern for fault tolerance
+- Add exponential backoff retry logic with jitter
+- Create dead letter queue for failed request analysis
+- Integrate Prometheus metrics for SLO tracking
+- Add Grafana dashboard for SLO visualization
+- **Current Implementation:**
+  - `docs/slo.md`: Comprehensive SLO documentation with targets, error budgets, and operational runbooks
+  - Circuit breaker with configurable failure thresholds and recovery timeouts
+  - Retry logic with exponential backoff and jitter for transient failure handling
+  - Dead letter queue (DLQ) for JSON-based error persistence and analysis
+  - Enhanced Prometheus metrics: requests, latency percentiles, circuit breaker state
+  - Grafana dashboard with SLO panels showing success rates, error budgets, and latency tracking
+  - Docker-based integration tests for end-to-end validation
+- **Artifacts:** docs/slo.md, SLO dashboard in Grafana, circuit breaker metrics, DLQ functionality, comprehensive test coverage
+- **Why:** Production-grade reliability, fault tolerance, automated recovery
 
 ### 6. Containerization + One-Command Dev
 **Status:** ✅ **COMPLETED** - Docker Compose setup for full observability stack
@@ -123,11 +134,9 @@ This document outlines the development roadmap for HealthtechParseMatch, organiz
 
 ## Current Focus
 
-**All Tier A items completed!** 🎉
+**Tier B #5 (SLOs + Basic Self-Healing) COMPLETED!** 🎉
 
-**Next Priority:** SLOs + Basic Self-Healing (Tier B #5)
-- Define SLOs for P95 latency and success rates
-- Implement retry budget metrics
-- Add fail-open policies for transient errors
-- Create dashboard.json with panels for Redox metrics
-- Add screenshots to documentation
+**Next Priorities:**
+- **Tier B #7:** Security Doc Stub + Threat Model (HIPAA controls, threat modeling)
+- **Tier C #8:** Message Bus (Redpanda/Kafka integration)
+- **Tier C #9:** Kubernetes (minimal k8s manifest/Helm chart)
