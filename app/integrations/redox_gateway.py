@@ -16,26 +16,48 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Type
 
-from prometheus_client import Counter, Gauge, Histogram
+from prometheus_client import REGISTRY, Counter, Gauge, Histogram
 
 from app.clients.redox_client import RedoxClient
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+
+# Prometheus metrics - create with error handling for duplicate registration
+def _get_or_create_metric(metric_class, name, description, labelnames=None, registry=None):
+    """Get existing metric or create new one, handling duplicate registration."""
+    try:
+        if labelnames:
+            return metric_class(name, description, labelnames, registry=registry or REGISTRY)
+        else:
+            return metric_class(name, description, registry=registry or REGISTRY)
+    except ValueError as e:
+        if "Already registered" in str(e):
+            # Metric already exists, get it from registry
+            return REGISTRY._names_to_collectors[name]
+        raise
+
+
 # Prometheus metrics
-REDOX_REQUESTS_TOTAL = Counter("redox_requests_total", "Total number of Redox API requests", ["method", "status"])
-REDOX_REQUEST_LATENCY = Histogram("redox_request_duration_seconds", "Request latency in seconds", ["method"])
+REDOX_REQUESTS_TOTAL = _get_or_create_metric(
+    Counter, "redox_requests_total", "Total number of Redox API requests", ["method", "status"]
+)
+REDOX_REQUEST_LATENCY = _get_or_create_metric(
+    Histogram, "redox_request_duration_seconds", "Request latency in seconds", ["method"]
+)
 
 # SLO and Self-Healing Metrics
-REDOX_RETRY_TOTAL = Counter("redox_retry_total", "Total number of retry attempts", ["method"])
-REDOX_CIRCUIT_BREAKER_STATE = Gauge(
-    "redox_circuit_breaker_state", "Circuit breaker state (0=closed, 1=open, 2=half_open)", ["method"]
+REDOX_RETRY_TOTAL = _get_or_create_metric(Counter, "redox_retry_total", "Total number of retry attempts", ["method"])
+REDOX_CIRCUIT_BREAKER_STATE = _get_or_create_metric(
+    Gauge, "redox_circuit_breaker_state", "Circuit breaker state (0=closed, 1=open, 2=half_open)", ["method"]
 )
-REDOX_ERROR_BUDGET_BURN_RATE = Gauge("redox_error_budget_burn_rate", "Error budget burn rate multiplier")
-REDOX_SLO_SUCCESS_RATE = Gauge("redox_slo_success_rate_ratio", "30-day success rate ratio")
-REDOX_SLO_P95_LATENCY = Gauge("redox_slo_p95_latency_seconds", "P95 latency in seconds")
-REDOX_SLO_P99_LATENCY = Gauge("redox_slo_p99_latency_seconds", "P99 latency in seconds")
+REDOX_ERROR_BUDGET_BURN_RATE = _get_or_create_metric(
+    Gauge, "redox_error_budget_burn_rate", "Error budget burn rate multiplier"
+)
+REDOX_SLO_SUCCESS_RATE = _get_or_create_metric(Gauge, "redox_slo_success_rate_ratio", "30-day success rate ratio")
+REDOX_SLO_P95_LATENCY = _get_or_create_metric(Gauge, "redox_slo_p95_latency_seconds", "P95 latency in seconds")
+REDOX_SLO_P99_LATENCY = _get_or_create_metric(Gauge, "redox_slo_p99_latency_seconds", "P99 latency in seconds")
 
 
 class CircuitState(Enum):
