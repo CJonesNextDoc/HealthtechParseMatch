@@ -24,6 +24,7 @@ dependencies = [
   "requests",
   "prometheus-client>=0.20.0",
   "aiokafka>=0.10.0",
+  "redis>=5.0.0",
 ]
 
 [project.optional-dependencies]

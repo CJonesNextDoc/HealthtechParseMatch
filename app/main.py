@@ -26,6 +26,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.core.context import request_id_ctx_var
+from app.core.distributed_rate_limiter import distributed_rate_limiter
 from app.core.middleware import RateLimitMiddleware
 from app.db.db import create_all, dispose_engine
 from app.db.db_manage import ensure_database
@@ -35,6 +36,7 @@ from app.routers.dob_router import router as dob_router
 from app.routers.patient_router import router as patient_router
 from app.routers.zip_router import router as zip_router
 from app.services.message_bus import start_message_bus, stop_message_bus
+from app.services.redis_service import redis_service
 from app.utils.logger import get_logger
 from app.utils.logging_config import setup_logging
 
@@ -70,6 +72,16 @@ async def lifespan(app: FastAPI):
     # Database startup
     await init_startup()
 
+    # Redis health check
+    try:
+        redis_health = await redis_service.health_check()
+        if redis_health["status"] == "healthy":
+            logger.info("Redis connection healthy")
+        else:
+            logger.warning(f"Redis connection issue: {redis_health}")
+    except Exception as e:
+        logger.warning(f"Redis health check failed: {e}")
+
     # Message bus startup
     try:
         await start_message_bus()
@@ -94,8 +106,8 @@ app = FastAPI(title="Healthtech Parse+Match API")
 router = APIRouter(tags=["FastAPI"])  # Keep this line!
 
 # Move rate limit middleware here - BEFORE logging middleware
-logger.info("Registering rate limit middleware")
-app.middleware("http")(RateLimitMiddleware())
+logger.info("Registering distributed rate limit middleware")
+app.middleware("http")(RateLimitMiddleware(limiter=distributed_rate_limiter))
 
 
 @app.middleware("http")

@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     manager_rate_limit: int = Field(default=300)
     admin_rate_limit: int = Field(default=1000)
     app_rate_limit: int = Field(default=5000)
+    rate_limit_test: bool = Field(default=False, validation_alias="RATE_LIMIT_TEST")
 
     # Logging
     log_level: str = "INFO"
@@ -49,16 +50,20 @@ class Settings(BaseSettings):
     kafka_dlq_topic: str = Field(default="redox.dlq", validation_alias="KAFKA_DLQ_TOPIC")
     kafka_consumer_group: str = Field(default="redox-gateway", validation_alias="KAFKA_CONSUMER_GROUP")
 
-    # Testing flags
-    testing_flag: bool = Field(default=False, validation_alias="TESTING")
-    rate_limit_test: bool = Field(default=False, validation_alias="RATE_LIMIT_TEST")
+    # Redis settings for caching, rate limiting, and distributed features
+    redis_url: str = Field(default="redis://localhost:6379", validation_alias="REDIS_URL")
+    redis_enabled: bool = Field(default=True, validation_alias="REDIS_ENABLED")
+    redis_ttl_default: int = Field(default=3600, validation_alias="REDIS_TTL_DEFAULT")  # 1 hour
+    redis_ttl_rate_limit: int = Field(default=60, validation_alias="REDIS_TTL_RATE_LIMIT")  # 1 minute
+    redis_ttl_session: int = Field(default=1800, validation_alias="REDIS_TTL_SESSION")  # 30 minutes
+    redis_ttl_cache: int = Field(default=300, validation_alias="REDIS_TTL_CACHE")  # 5 minutes
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore", protected_namespaces=())
 
     @property
     def is_testing(self) -> bool:
         """Used for database/environment testing"""
-        return self.testing_flag or self.testing or self.environment == "test"
+        return self.testing or self.environment == "test"
 
     @property
     def skip_rate_limit(self) -> bool:

@@ -16,6 +16,13 @@ services:
       - KAFKA_OUTBOUND_TOPIC=redox.outbound
       - KAFKA_DLQ_TOPIC=redox.dlq
       - KAFKA_CONSUMER_GROUP=redox-gateway
+      # Redis settings
+      - REDIS_URL=redis://redis:6379
+      - REDIS_ENABLED=true
+      # Redox settings (demo values)
+      - REDOX_CLIENT_ID=demo-client-id
+      - REDOX_CLIENT_SECRET=demo-client-secret
+      - REDOX_PRIVATE_JWK={"kty":"RSA","n":"demo-modulus","e":"AQAB","d":"demo-private-exponent","p":"demo-p","q":"demo-q","dp":"demo-dp","dq":"demo-dq","qi":"demo-qi"}
     volumes:
       - ./logs:/app/logs
     healthcheck:
@@ -89,8 +96,22 @@ services:
       timeout: 10s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
 volumes:
   grafana_data:
   prometheus_data:
   redpanda_data:
   postgres_data:
+  redis_data:

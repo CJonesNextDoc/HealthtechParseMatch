@@ -119,6 +119,67 @@ done
 - `docs/grafana_dashboard.json` - Grafana dashboard definition
 - `docs/grafana_setup.md` - Detailed setup instructions
 
+## Redis Integration
+
+Redis provides distributed caching, session management, rate limiting, and idempotency features for production scalability.
+
+### Redis Features
+
+- **🔄 Distributed Rate Limiting**: Redis-backed rate limiting that works across multiple API instances
+- **💾 Application Caching**: Cache frequently accessed patient data, API responses, and computed results
+- **📋 Session Management**: Store voice AI call session state and context
+- **🔒 Idempotency Keys**: Prevent duplicate operations and cache expensive computation results
+- **🚦 Distributed Locks**: Coordinate between multiple instances for critical operations
+- **📨 Message Deduplication**: Prevent duplicate message processing in the message bus
+- **🚩 Feature Flags**: Dynamic feature flag management for canary deployments
+- **🏥 Health Monitoring**: Redis health checks integrated into application health endpoints
+
+### Redis Configuration
+
+```bash
+# Environment Variables
+REDIS_URL=redis://localhost:6379
+REDIS_ENABLED=true
+REDIS_TTL_DEFAULT=3600
+REDIS_TTL_RATE_LIMIT=60
+REDIS_TTL_SESSION=1800
+REDIS_TTL_CACHE=300
+```
+
+### Docker Setup
+
+Redis is included in the Docker Compose stack:
+
+```bash
+docker-compose up -d redis
+```
+
+### Redis Services
+
+- `RedisService`: Core Redis operations (get/set/cache/health checks)
+- `CacheService`: Application-level caching with TTL management
+- `IdempotencyService`: Prevent duplicate operations with result caching
+- `DistributedRateLimiter`: Redis-backed rate limiting across instances
+
+### Example Usage
+
+```python
+from app.services.redis_service import redis_service
+from app.services.cache_service import cache_service
+from app.services.idempotency_service import idempotency_service
+
+# Cache patient data
+await cache_service.cache_patient_data(patient_id, patient_data)
+
+# Idempotent operation
+result = await idempotency_service.execute_idempotent(
+    "patient_match", match_patient_function, dob=dob, zip=zip_code
+)
+
+# Check rate limit
+allowed = await redis_service.check_rate_limit("user@email.com", 100, 60)
+```
+
 ## Test
 
 ```bash

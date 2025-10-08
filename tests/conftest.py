@@ -276,5 +276,24 @@ def setup_test_environment():
 
 @pytest.fixture
 def rate_limiter():
-    """Create a fresh RateLimiter instance for tests."""
-    return RateLimiter()
+    """Create a rate limiter instance for tests - uses distributed limiter if Redis available."""
+    try:
+        # Try to use the distributed rate limiter (requires Redis)
+        # Test if Redis is available by doing a health check
+        import asyncio
+
+        from app.core.distributed_rate_limiter import distributed_rate_limiter
+
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        health = loop.run_until_complete(distributed_rate_limiter.redis_service.health_check())
+        loop.close()
+
+        if health.get("status") == "healthy":
+            return distributed_rate_limiter
+        else:
+            # Fall back to in-memory limiter if Redis not available
+            return RateLimiter()
+    except Exception:
+        # Fall back to in-memory limiter if any error
+        return RateLimiter()
