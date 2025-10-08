@@ -24,7 +24,7 @@ import json
 import random
 import time
 from datetime import datetime
-from typing import Dict
+from typing import Any, Dict, List
 
 import httpx
 
@@ -142,8 +142,8 @@ class HealthtechDemo:
 
     def __init__(self, base_url: str = "http://localhost:8000"):
         self.base_url = base_url
-        self.session_data = {}
-        self.call_logs = []
+        self.session_data: Dict[str, Any] = {}
+        self.call_logs: List[Dict[str, Any]] = []
 
     async def log_call_event(self, event_type: str, details: Dict, phi_safe: bool = True):
         """Log call events with PHI protection"""

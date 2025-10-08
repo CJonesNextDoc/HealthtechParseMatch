@@ -4,7 +4,7 @@ Tests for Redis services: RedisService, CacheService, IdempotencyService, Distri
 """
 
 import asyncio
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
@@ -21,28 +21,31 @@ class TestRedisService:
     def redis_service_instance(self):
         """Create a fresh RedisService instance for testing"""
         service = RedisService()
-        # Mock the Redis client to avoid actual Redis connection
-        service.redis = AsyncMock()
+        # Mock the get_client method to return a mock Redis client
+        mock_client = AsyncMock()
+        service.get_client = AsyncMock(return_value=mock_client)
+        service._enabled = True
         return service
 
     @pytest.mark.asyncio
     async def test_health_check_success(self, redis_service_instance):
         """Test successful Redis health check"""
         # Mock successful ping
-        redis_service_instance.redis.ping.return_value = True
+        mock_client = await redis_service_instance.get_client()
+        mock_client.ping.return_value = None
 
         result = await redis_service_instance.health_check()
 
         assert result["status"] == "healthy"
         assert result["enabled"] is True
-        assert "ping_time" in result
-        redis_service_instance.redis.ping.assert_called_once()
+        mock_client.ping.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_health_check_failure(self, redis_service_instance):
         """Test Redis health check failure"""
         # Mock failed ping
-        redis_service_instance.redis.ping.side_effect = Exception("Connection failed")
+        mock_client = await redis_service_instance.get_client()
+        mock_client.ping.side_effect = Exception("Connection failed")
 
         result = await redis_service_instance.health_check()
 
@@ -52,42 +55,60 @@ class TestRedisService:
 
     @pytest.mark.asyncio
     async def test_get_set_operations(self, redis_service_instance):
-        """Test basic get/set operations"""
-        # Mock successful set and get
-        redis_service_instance.redis.set.return_value = True
-        redis_service_instance.redis.get.return_value = b"test_value"
+        """Test basic get/set cache operations"""
+        mock_client = await redis_service_instance.get_client()
 
-        # Test set
-        await redis_service_instance.set("test_key", "test_value")
-        redis_service_instance.redis.set.assert_called_with("test_key", "test_value", ex=None)
+        # Test set_cache
+        mock_client.setex.return_value = True
+        result = await redis_service_instance.set_cache("test_key", "test_value")
+        assert result is True
+        mock_client.setex.assert_called_with("cache:test_key", 300, "test_value")
 
-        # Test get
-        result = await redis_service_instance.get("test_key")
+        # Test get_cache
+        mock_client.get.return_value = b'"test_value"'
+        result = await redis_service_instance.get_cache("test_key")
         assert result == "test_value"
-        redis_service_instance.redis.get.assert_called_with("test_key")
+        mock_client.get.assert_called_with("cache:test_key")
 
     @pytest.mark.asyncio
     async def test_check_rate_limit_allowed(self, redis_service_instance):
         """Test rate limit check when request is allowed"""
-        # Mock Redis operations for rate limiting
-        redis_service_instance.redis.zadd.return_value = None
-        redis_service_instance.redis.zremrangebyscore.return_value = None
-        redis_service_instance.redis.zcard.return_value = 5  # Current count below limit
+        mock_client = await redis_service_instance.get_client()
+        mock_pipeline = AsyncMock()
+        mock_client.pipeline = Mock(return_value=mock_pipeline)
+        mock_pipeline.__aenter__.return_value = mock_pipeline
+        mock_pipeline.__aexit__.return_value = None
+
+        # Mock pipeline operations (synchronous methods on async context manager)
+        mock_pipeline.zremrangebyscore = Mock(return_value=None)
+        mock_pipeline.zadd = Mock(return_value=None)
+        mock_pipeline.zcard = Mock(return_value=5)  # Current count below limit
+        mock_pipeline.expire = Mock(return_value=None)
+        mock_pipeline.execute = AsyncMock(return_value=[None, None, 5, None])
 
         allowed = await redis_service_instance.check_rate_limit("user@test.com", 10, 60)
 
         assert allowed is True
-        redis_service_instance.redis.zadd.assert_called_once()
-        redis_service_instance.redis.zremrangebyscore.assert_called_once()
-        redis_service_instance.redis.zcard.assert_called_once()
+        mock_pipeline.zremrangebyscore.assert_called_once()
+        mock_pipeline.zadd.assert_called_once()
+        mock_pipeline.zcard.assert_called_once()
+        mock_pipeline.expire.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_check_rate_limit_blocked(self, redis_service_instance):
         """Test rate limit check when request is blocked"""
-        # Mock Redis operations - count exceeds limit
-        redis_service_instance.redis.zadd.return_value = None
-        redis_service_instance.redis.zremrangebyscore.return_value = None
-        redis_service_instance.redis.zcard.return_value = 15  # Current count exceeds limit of 10
+        mock_client = await redis_service_instance.get_client()
+        mock_pipeline = AsyncMock()
+        mock_client.pipeline = Mock(return_value=mock_pipeline)
+        mock_pipeline.__aenter__.return_value = mock_pipeline
+        mock_pipeline.__aexit__.return_value = None
+
+        # Mock pipeline operations - count exceeds limit
+        mock_pipeline.zremrangebyscore = Mock(return_value=None)
+        mock_pipeline.zadd = Mock(return_value=None)
+        mock_pipeline.zcard = Mock(return_value=15)  # Current count exceeds limit of 10
+        mock_pipeline.expire = Mock(return_value=None)
+        mock_pipeline.execute = AsyncMock(return_value=[None, None, 15, None])
 
         allowed = await redis_service_instance.check_rate_limit("user@test.com", 10, 60)
 
@@ -101,58 +122,67 @@ class TestCacheService:
     def cache_service_instance(self):
         """Create a fresh CacheService instance for testing"""
         service = CacheService()
-        # Mock the Redis service
-        service.redis_service = AsyncMock()
         return service
 
     @pytest.mark.asyncio
-    async def test_get_or_set_cache_hit(self, cache_service_instance):
+    async def test_get_or_set_cache_hit(self, cache_service_instance, monkeypatch):
         """Test get_or_set when cache hit"""
-        # Mock cache hit
-        cache_service_instance.redis_service.get.return_value = "cached_value"
+        # Mock the global redis_service
+        mock_redis = AsyncMock()
+        mock_redis.get_cache.return_value = "cached_value"
+        monkeypatch.setattr("app.services.cache_service.redis_service", mock_redis)
 
         result = await cache_service_instance.get_or_set("test_key", lambda: "new_value")
 
         assert result == "cached_value"
-        cache_service_instance.redis_service.get.assert_called_with("test_key")
+        mock_redis.get_cache.assert_called_with("test_key")
         # Should not call set since we got a cache hit
-        cache_service_instance.redis_service.set.assert_not_called()
+        mock_redis.set_cache.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_get_or_set_cache_miss(self, cache_service_instance):
+    async def test_get_or_set_cache_miss(self, cache_service_instance, monkeypatch):
         """Test get_or_set when cache miss"""
-        # Mock cache miss then successful set
-        cache_service_instance.redis_service.get.return_value = None
-        cache_service_instance.redis_service.set.return_value = None
+        # Mock the global redis_service
+        mock_redis = AsyncMock()
+        mock_redis.get_cache.return_value = None
+        mock_redis.set_cache.return_value = True
+        monkeypatch.setattr("app.services.cache_service.redis_service", mock_redis)
 
-        result = await cache_service_instance.get_or_set("test_key", lambda: "new_value")
+        async def getter():
+            return "new_value"
+
+        result = await cache_service_instance.get_or_set("test_key", getter)
 
         assert result == "new_value"
-        cache_service_instance.redis_service.get.assert_called_with("test_key")
-        cache_service_instance.redis_service.set.assert_called_with("test_key", "new_value", ex=300)
+        mock_redis.get_cache.assert_called_with("test_key")
+        mock_redis.set_cache.assert_called_with("test_key", "new_value", None)
 
     @pytest.mark.asyncio
-    async def test_cache_patient_data(self, cache_service_instance):
+    async def test_cache_patient_data(self, cache_service_instance, monkeypatch):
         """Test patient data caching"""
-        patient_data = {"id": "123", "name": "John Doe"}
-        cache_service_instance.redis_service.set.return_value = None
+        # Mock the global redis_service
+        mock_redis = AsyncMock()
+        mock_redis.set_cache.return_value = True
+        monkeypatch.setattr("app.services.cache_service.redis_service", mock_redis)
 
+        patient_data = {"id": "123", "name": "John Doe"}
         await cache_service_instance.cache_patient_data("patient_123", patient_data)
 
-        cache_service_instance.redis_service.set.assert_called_with(
-            "patient:patient_123", '{"id": "123", "name": "John Doe"}', ex=300
-        )
+        mock_redis.set_cache.assert_called_with("patient:patient_123", patient_data, None)
 
     @pytest.mark.asyncio
-    async def test_get_cached_patient_data(self, cache_service_instance):
+    async def test_get_cached_patient_data(self, cache_service_instance, monkeypatch):
         """Test retrieving cached patient data"""
+        # Mock the global redis_service
+        mock_redis = AsyncMock()
         patient_data = {"id": "123", "name": "John Doe"}
-        cache_service_instance.redis_service.get.return_value = '{"id": "123", "name": "John Doe"}'
+        mock_redis.get_cache.return_value = patient_data
+        monkeypatch.setattr("app.services.cache_service.redis_service", mock_redis)
 
         result = await cache_service_instance.get_cached_patient_data("patient_123")
 
         assert result == patient_data
-        cache_service_instance.redis_service.get.assert_called_with("patient:patient_123")
+        mock_redis.get_cache.assert_called_with("patient:patient_123")
 
 
 class TestIdempotencyService:
@@ -162,43 +192,50 @@ class TestIdempotencyService:
     def idempotency_service_instance(self):
         """Create a fresh IdempotencyService instance for testing"""
         service = IdempotencyService()
-        # Mock the Redis service
-        service.redis_service = AsyncMock()
         return service
 
     @pytest.mark.asyncio
-    async def test_execute_idempotent_new_operation(self, idempotency_service_instance):
+    async def test_execute_idempotent_new_operation(self, idempotency_service_instance, monkeypatch):
         """Test executing a new idempotent operation"""
-        # Mock cache miss - no existing result
-        idempotency_service_instance.redis_service.get.return_value = None
-        idempotency_service_instance.redis_service.set.return_value = None
+        # Mock the global redis_service
+        mock_redis = AsyncMock()
+        mock_redis.check_idempotency.return_value = True  # Can proceed (first time)
+        mock_redis.get_idempotency_result.return_value = None
+        mock_redis.store_idempotency_result.return_value = True
+        monkeypatch.setattr("app.services.idempotency_service.redis_service", mock_redis)
 
         async def test_function(x, y):
             return x + y
 
-        result = await idempotency_service_instance.execute_idempotent("test_key", test_function, x=5, y=3)
+        result = await IdempotencyService.execute_idempotent("test_key", test_function, x=5, y=3)
 
         assert result == 8
-        # Should check cache first
-        idempotency_service_instance.redis_service.get.assert_called_with("idempotent:test_key")
+        # Should check if already performed
+        mock_redis.check_idempotency.assert_called_once()
+        # Should not check cache since it's a new operation
+        mock_redis.get_idempotency_result.assert_not_called()
         # Should cache the result
-        idempotency_service_instance.redis_service.set.assert_called_with("idempotent:test_key", "8", ex=3600)
+        mock_redis.store_idempotency_result.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_execute_idempotent_cached_result(self, idempotency_service_instance):
+    async def test_execute_idempotent_cached_result(self, idempotency_service_instance, monkeypatch):
         """Test executing idempotent operation with cached result"""
-        # Mock cache hit
-        idempotency_service_instance.redis_service.get.return_value = "42"
+        # Mock the global redis_service
+        mock_redis = AsyncMock()
+        mock_redis.check_idempotency.return_value = False  # Duplicate operation
+        mock_redis.get_idempotency_result.return_value = 42
+        monkeypatch.setattr("app.services.idempotency_service.redis_service", mock_redis)
 
         async def test_function():
             return 999  # This should not be called
 
-        result = await idempotency_service_instance.execute_idempotent("test_key", test_function)
+        result = await IdempotencyService.execute_idempotent("test_key", test_function)
 
         assert result == 42
-        idempotency_service_instance.redis_service.get.assert_called_with("idempotent:test_key")
-        # Should not set new result since we got cached value
-        idempotency_service_instance.redis_service.set.assert_not_called()
+        mock_redis.check_idempotency.assert_called_once()
+        mock_redis.get_idempotency_result.assert_called_once()
+        # Should not execute the function or store new result
+        mock_redis.store_idempotency_result.assert_not_called()
 
 
 class TestDistributedRateLimiter:
@@ -208,38 +245,42 @@ class TestDistributedRateLimiter:
     def rate_limiter_instance(self):
         """Create a fresh DistributedRateLimiter instance for testing"""
         limiter = DistributedRateLimiter()
-        # Mock the Redis service
-        limiter.redis_service = AsyncMock()
         return limiter
 
     @pytest.mark.asyncio
-    async def test_check_rate_limit_allowed(self, rate_limiter_instance):
+    async def test_check_rate_limit_allowed(self, rate_limiter_instance, monkeypatch):
         """Test rate limit check when request is allowed"""
-        # Mock Redis service to return allowed
-        rate_limiter_instance.redis_service.check_rate_limit.return_value = True
+        # Mock the global redis_service
+        mock_redis = AsyncMock()
+        mock_redis.check_rate_limit.return_value = True
+        monkeypatch.setattr("app.core.distributed_rate_limiter.redis_service", mock_redis)
 
         allowed = await rate_limiter_instance.check_rate_limit("user@test.com", "user")
 
         assert allowed is True
-        rate_limiter_instance.redis_service.check_rate_limit.assert_called_with(
-            "user@test.com:user", 100, 60  # Default user limit and window
+        mock_redis.check_rate_limit.assert_called_with(
+            "user@test.com:user", 2, 1  # Test limits: 2 requests per 1 second window
         )
 
     @pytest.mark.asyncio
-    async def test_check_rate_limit_blocked(self, rate_limiter_instance):
+    async def test_check_rate_limit_blocked(self, rate_limiter_instance, monkeypatch):
         """Test rate limit check when request is blocked"""
-        # Mock Redis service to return blocked
-        rate_limiter_instance.redis_service.check_rate_limit.return_value = False
+        # Mock the global redis_service
+        mock_redis = AsyncMock()
+        mock_redis.check_rate_limit.return_value = False
+        monkeypatch.setattr("app.core.distributed_rate_limiter.redis_service", mock_redis)
 
         allowed = await rate_limiter_instance.check_rate_limit("user@test.com", "user")
 
         assert allowed is False
 
     @pytest.mark.asyncio
-    async def test_check_rate_limit_redis_failure_fallback(self, rate_limiter_instance):
+    async def test_check_rate_limit_redis_failure_fallback(self, rate_limiter_instance, monkeypatch):
         """Test that Redis failure falls back to allowing requests"""
-        # Mock Redis service to raise exception
-        rate_limiter_instance.redis_service.check_rate_limit.side_effect = Exception("Redis down")
+        # Mock the global redis_service to raise exception
+        mock_redis = AsyncMock()
+        mock_redis.check_rate_limit.side_effect = Exception("Redis down")
+        monkeypatch.setattr("app.core.distributed_rate_limiter.redis_service", mock_redis)
 
         allowed = await rate_limiter_instance.check_rate_limit("user@test.com", "user")
 
@@ -247,13 +288,16 @@ class TestDistributedRateLimiter:
         assert allowed is True
 
     @pytest.mark.asyncio
-    async def test_reset_user(self, rate_limiter_instance):
+    async def test_reset_user(self, rate_limiter_instance, monkeypatch):
         """Test resetting rate limit for a user"""
-        rate_limiter_instance.redis_service.reset_rate_limit.return_value = None
+        # Mock the global redis_service
+        mock_redis = AsyncMock()
+        mock_redis.reset_rate_limit.return_value = None
+        monkeypatch.setattr("app.core.distributed_rate_limiter.redis_service", mock_redis)
 
         await rate_limiter_instance.reset_user("user@test.com", "user")
 
-        rate_limiter_instance.redis_service.reset_rate_limit.assert_called_with("user@test.com:user")
+        mock_redis.reset_rate_limit.assert_called_with("user@test.com:user")
 
 
 # Integration tests that require actual Redis connection
