@@ -697,6 +697,8 @@ def parse_spoken_date(text: str, attempt: int = 1) -> dict:
 
 # rsl = parse_spoken_date("Twelve thirteen two thousand two")
 # print(f"result: {rsl}")
+# rsl = parse_spoken_date("twelve thirteen twenty oh two")
+# print(f"result: {rsl}")
 
-rsl = parse_spoken_date("twelve thirteen twenty oh two")
+rsl = parse_spoken_date("o seven zero two nineteen sixty two")
 print(f"result: {rsl}")

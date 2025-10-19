@@ -17,7 +17,21 @@ source .venv/bin/activate
 
 # Install dependencies
 pip install -e .[dev]
+
+# Run the API
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
+
+### Getting Help from AI Assistants
+
+When requesting help from AI coding assistants, use our [Request Template](REQUEST_TEMPLATE.md) to ensure clear, actionable requests that align with project standards. This template helps you:
+
+- Provide complete context and requirements
+- Reference relevant development standards
+- Define clear acceptance criteria
+- Avoid common communication pitfalls
+
+See [DEVELOPMENT.md](DEVELOPMENT.md#working-with-ai-assistants) for detailed guidance on effective AI collaboration.
 
 ## CI/CD Pipeline
 

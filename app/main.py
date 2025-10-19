@@ -32,6 +32,7 @@ from app.db.db import create_all, dispose_engine
 from app.db.db_manage import ensure_database
 from app.routers import assignments_router, employees_router, health_router, projects_router
 from app.routers.dob_llm_router import router as dob_llm_router
+from app.routers.dob_pipeline_router import router as dob_pipeline_router
 from app.routers.dob_router import router as dob_router
 from app.routers.patient_router import router as patient_router
 from app.routers.zip_router import router as zip_router
@@ -186,6 +187,7 @@ app.include_router(dob_router)
 app.include_router(zip_router)
 app.include_router(patient_router)
 app.include_router(dob_llm_router)
+app.include_router(dob_pipeline_router)
 
 
 # Mount the static directory

@@ -58,6 +58,9 @@ class Settings(BaseSettings):
     redis_ttl_session: int = Field(default=1800, validation_alias="REDIS_TTL_SESSION")  # 30 minutes
     redis_ttl_cache: int = Field(default=300, validation_alias="REDIS_TTL_CACHE")  # 5 minutes
 
+    # External caller data source for DOB training pipeline
+    caller_source_data: str = Field(default="", validation_alias="CALLER_SOURCE_DATA")
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore", protected_namespaces=())
 
     @property

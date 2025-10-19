@@ -57,6 +57,12 @@ def _ensure_sessionmaker():
     return _SessionLocal
 
 
+async def get_db_session() -> AsyncSession:
+    """Get a database session for direct use (not as FastAPI dependency)"""
+    sessionmaker = _ensure_sessionmaker()
+    return sessionmaker()
+
+
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """Get database session based on environment"""
     # Force check environment variable first

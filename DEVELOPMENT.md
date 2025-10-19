@@ -4,6 +4,7 @@ This document outlines the development standards and patterns used in the Health
 
 ## Table of Contents
 
+- [Working with AI Assistants](#working-with-ai-assistants)
 - [Async Patterns](#async-patterns)
 - [HTTP Client Usage](#http-client-usage)
 - [Testing Conventions](#testing-conventions)
@@ -13,6 +14,63 @@ This document outlines the development standards and patterns used in the Health
 - [Logging](#logging)
 - [Error Handling](#error-handling)
 - [Environment Configuration](#environment-configuration)
+
+## Working with AI Assistants
+
+When requesting help from AI coding assistants, use the [REQUEST_TEMPLATE.md](../REQUEST_TEMPLATE.md) to ensure clear, actionable requests that align with project standards.
+
+### Key Principles
+
+- **Be Specific**: Clearly state what you want to achieve
+- **Provide Context**: Explain current situation and constraints
+- **Reference Standards**: Always mention relevant DEVELOPMENT.md sections
+- **Define Success**: Specify acceptance criteria and deliverables
+
+### Template Usage
+
+```markdown
+## 🎯 **Goal**
+[What you want to achieve - be specific and measurable]
+
+## 📋 **Context**
+[Current situation, relevant background, constraints]
+
+## 🔧 **Technical Details**
+- **Framework/Tech Stack**: [FastAPI, SQLAlchemy, Redis, etc.]
+- **Existing Code**: [Reference specific files/classes/functions]
+- **Requirements**: [Functional and non-functional requirements]
+
+## 📝 **Acceptance Criteria**
+- [ ] Specific deliverables (files, functions, tests)
+- [ ] Code quality standards (async patterns, error handling, etc.)
+- [ ] Testing requirements
+- [ ] Documentation needs
+
+## 🚫 **Constraints & Preferences**
+- [Follow DEVELOPMENT.md standards](#development-standards)
+- [Async patterns required](#async-patterns)
+- [Testing conventions](#testing-conventions)
+```
+
+### Common Mistakes to Avoid
+
+❌ **Vague requests**: "Make it better" or "Add feature X"
+❌ **Missing context**: Not explaining current state or constraints
+❌ **Ignoring standards**: Not referencing DEVELOPMENT.md patterns
+❌ **No acceptance criteria**: Unclear completion requirements
+
+✅ **Clear goals**: Specific, measurable outcomes
+✅ **Complete context**: Background and current state
+✅ **Technical details**: Files, patterns, requirements specified
+✅ **Success criteria**: Deliverables and testing requirements defined
+
+### Quick Checklist
+
+- [ ] **Goal**: Specific and measurable?
+- [ ] **Context**: Current situation explained?
+- [ ] **Technical Details**: Frameworks and files listed?
+- [ ] **Acceptance Criteria**: Clear deliverables defined?
+- [ ] **Constraints**: DEVELOPMENT.md standards referenced?
 
 ## Async Patterns
 
