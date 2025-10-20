@@ -157,7 +157,7 @@ class DOBPipelineRun(Base):
         """Mark the pipeline run as completed."""
         from datetime import datetime
 
-        self.completed_at = datetime.now()
+        self.completed_at = datetime.now()  # type: ignore[assignment]
         self.success = success
         if error_message:
             self.error_message = error_message

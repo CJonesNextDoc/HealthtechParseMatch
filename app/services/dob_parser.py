@@ -211,6 +211,7 @@ def try_dtmf_dob(text: str, *, today: date | None = None, min_age: int = 0, max_
 
 def parse_dob_candidates(text: str, *, today: date | None = None, min_age: int = 0, max_age: int = 120) -> dict[str, list]:
     """Return [(iso, score)] sorted desc."""
+    # First try pure DTMF parsing
     dtmf_dob = try_dtmf_dob(text, today=today, min_age=min_age, max_age=max_age)
     logger.debug(f"Date to parse: {text}")
     if dtmf_dob:
@@ -225,12 +226,27 @@ def parse_dob_candidates(text: str, *, today: date | None = None, min_age: int =
         rtn = {"dob_candidates": [rtn_msg]} if rtn_msg else {"dob_candidates": []}
         return rtn
 
+    # Next try hybrid parsing (spoken + DTMF digits)
+    hybrid_dob = try_hybrid_dob(text, today=today, min_age=min_age, max_age=max_age)
+    if hybrid_dob:
+        rtn_msg = {
+            "iso": f"{hybrid_dob['year']}-{hybrid_dob['month']:02d}-{hybrid_dob['day']:02d}",
+            "year": hybrid_dob["year"],
+            "month": hybrid_dob["month"],
+            "day": hybrid_dob["day"],
+            "score": 0.95,  # Slightly lower than pure DTMF but higher than spoken-only
+        }
+        logger.debug(f"Hybrid parsed date: {rtn_msg}")
+        rtn = {"dob_candidates": [rtn_msg]} if rtn_msg else {"dob_candidates": []}
+        return rtn
+
+    # Finally fall back to spoken parsing
     parsed_dt = parse_spoken_date(text)
     if parsed_dt and "year" in parsed_dt and "month" in parsed_dt and "day" in parsed_dt:
         # Adjust score based on transcript length (more words = more specific)
         base_score = 0.8
         word_count = len(text.split())
-        adjusted_score = min(0.95, base_score + 0.01 * word_count)  # Cap at 0.95
+        adjusted_score = min(0.90, base_score + 0.01 * word_count)  # Cap at 0.90 for spoken-only
         parsed_dt["score"] = adjusted_score
         parsed_dt["iso"] = f"{parsed_dt['year']}-{parsed_dt['month']:02d}-{parsed_dt['day']:02d}"
         logger.debug(f"Parsed date: {parsed_dt}")
@@ -693,6 +709,60 @@ def parse_spoken_date(text: str, attempt: int = 1) -> dict:
             logger.debug(" ".join(tail2))
 
     return parts
+
+
+def try_hybrid_dob(text: str, *, today: date | None = None, min_age: int = 0, max_age: int = 120) -> dict | None:
+    """
+    Handle hybrid cases where text contains both spoken words and DTMF digits.
+    Looks for consecutive digit sequences (6 or 8 digits) that may be space-separated,
+    and tries to parse them as dates.
+    If successful and matches spoken parsing, returns DTMF result with high confidence.
+    """
+    # Find all digit sequences (may be space-separated)
+    digit_sequences = re.findall(r"\d+", text)
+
+    # Look for sequences that could form valid DTMF dates when concatenated
+    # Check consecutive sequences of digits, prioritizing longer sequences
+    valid_candidates = []
+    for i in range(len(digit_sequences)):
+        # Try different lengths starting from this position, prioritizing longer ones
+        for length in [8, 6]:  # MMDDYYYY first, then MMDDYY
+            if i + length <= len(digit_sequences):
+                # Concatenate the next 'length' digits
+                candidate = "".join(digit_sequences[i : i + length])
+                if len(candidate) == length:
+                    logger.debug(f"Found potential DTMF sequence: {candidate}")
+
+                    # Try to parse as DTMF date
+                    dtmf_result = try_dtmf_dob(candidate, today=today, min_age=min_age, max_age=max_age)
+                    if dtmf_result:
+                        valid_candidates.append((candidate, dtmf_result))
+                        logger.debug(f"DTMF parsing successful for {candidate}: {dtmf_result}")
+
+    # If we found valid DTMF candidates, use the first one (prioritizing longer sequences due to order)
+    for candidate, dtmf_result in valid_candidates:
+        logger.debug(f"Evaluating DTMF candidate: {candidate} -> {dtmf_result}")
+
+        # Also try spoken parsing to see if they agree
+        spoken_result = parse_spoken_date(text)
+        logger.debug(f"Spoken parsing result: {spoken_result}")
+
+        # Check if both parsing methods agree on the date
+        if (
+            spoken_result
+            and spoken_result.get("year") == dtmf_result["year"]
+            and spoken_result.get("month") == dtmf_result["month"]
+            and spoken_result.get("day") == dtmf_result["day"]
+        ):
+            logger.debug("DTMF and spoken parsing agree - high confidence result")
+            return dtmf_result
+        else:
+            logger.debug("DTMF and spoken parsing disagree - preferring DTMF for hybrid input")
+            # For hybrid input (contains both words and digits), prefer DTMF since it's more precise
+            # DTMF gives exact digits while spoken parsing can be ambiguous
+            return dtmf_result
+
+    return None
 
 
 # rsl = parse_spoken_date("Twelve thirteen two thousand two")

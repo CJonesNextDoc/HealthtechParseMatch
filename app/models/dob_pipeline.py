@@ -6,7 +6,8 @@ between DOB, ZIP, and phone data silos for privacy compliance.
 """
 
 from datetime import date, datetime
-from typing import Optional
+from enum import Enum
+from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -109,3 +110,90 @@ class DOBPipelineStats(BaseModel):
     processing_duration_seconds: float = Field(default=0.0, description="Time taken to process batch")
     query_start_date: Optional[date] = Field(None, description="Start date of query range")
     query_end_date: Optional[date] = Field(None, description="End date of query range")
+
+
+# Validation Models for Milestone 1.2
+
+
+class ValidationMatchType(str, Enum):
+    """Enumeration of possible validation match types."""
+
+    EXACT_MATCH = "exact_match"
+    PARTIAL_MATCH = "partial_match"
+    NO_MATCH = "no_match"
+    PARSER_FAILURE = "parser_failure"
+    SOURCE_FAILURE = "source_failure"
+    IMPROVEMENT_OPPORTUNITY = "improvement_opportunity"
+
+
+class DOBValidationResult(BaseModel):
+    """
+    Result of validating a single DOB training record against the parser.
+
+    Compares parser output with existing system conversion.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    record_hash: str = Field(..., description="SHA-256 hash of the training record")
+    dob_input: str = Field(..., description="Original spoken text input")
+    existing_dob: Optional[date] = Field(None, description="What the source system produced")
+    parser_result: Optional[date] = Field(None, description="What our parser produced")
+    match_type: ValidationMatchType = Field(..., description="Type of match between parser and source")
+    processing_time_ms: float = Field(..., description="Time taken to run parser (milliseconds)")
+    parser_confidence: Optional[float] = Field(None, description="Parser confidence score (0.0-1.0)")
+    error_message: Optional[str] = Field(None, description="Error message if validation failed")
+
+    # Metadata for analysis
+    input_type: str = Field(..., description="Input type: spoken/dtmf")
+    classification: str = Field(..., description="Original classification from source")
+    attempt_number: int = Field(..., description="Attempt number from source")
+
+
+class DOBValidationRequest(BaseModel):
+    """
+    Request parameters for batch validation operations.
+    """
+
+    limit: int = Field(default=100, ge=1, le=1000, description="Number of records to validate")
+    offset: int = Field(default=0, ge=0, description="Pagination offset")
+    input_type: Optional[str] = Field(None, description="Filter by input type: 'spoken', 'dtmf', or None for all")
+    classification: Optional[str] = Field(None, description="Filter by classification or None for all")
+
+
+class DOBValidationSummary(BaseModel):
+    """
+    Summary statistics for a batch of validation results.
+    """
+
+    total_records: int = Field(..., description="Total records in the dataset")
+    processed: int = Field(..., description="Number of records actually processed")
+    exact_matches: int = Field(..., description="Records where parser exactly matched source")
+    partial_matches: int = Field(..., description="Records with partial matches (different formats)")
+    no_matches: int = Field(..., description="Records where parser and source disagreed")
+    parser_failures: int = Field(..., description="Records where our parser failed")
+    source_failures: int = Field(..., description="Records where source system failed")
+    improvement_opportunities: int = Field(..., description="Cases where parser succeeded but source failed")
+
+    # Performance metrics
+    average_processing_time_ms: float = Field(..., description="Average parser processing time")
+    total_processing_time_ms: float = Field(..., description="Total time for all validations")
+
+    # Accuracy percentages
+    exact_match_rate: float = Field(..., description="Percentage of exact matches (0.0-1.0)")
+    parser_success_rate: float = Field(..., description="Percentage where parser didn't fail (0.0-1.0)")
+    source_success_rate: float = Field(..., description="Percentage where source didn't fail (0.0-1.0)")
+
+    # Request metadata
+    request_timestamp: datetime = Field(default_factory=datetime.now, description="When this summary was generated")
+    filters_applied: dict = Field(default_factory=dict, description="Filters used for this validation run")
+
+
+class DOBValidationDetailedResponse(BaseModel):
+    """
+    Detailed validation response including both summary and individual results.
+    """
+
+    summary: DOBValidationSummary = Field(..., description="Summary statistics")
+    results: List[DOBValidationResult] = Field(..., description="Detailed validation results for each record")
+    mismatches_only: bool = Field(default=False, description="Whether results are filtered to show only mismatches")

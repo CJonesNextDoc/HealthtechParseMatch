@@ -250,15 +250,27 @@ class DOBDataFetcher:
 
                 row = result.fetchone()
 
-                return DOBPipelineStats(
-                    total_records_processed=row.total_records,
-                    records_with_existing_dob=row.with_existing_dob,
-                    records_failed_conversion=row.failed_conversion,
-                    spoken_attempts=row.spoken_attempts,
-                    dtmf_attempts=row.dtmf_attempts,
-                    query_start_date=params.start_date,
-                    query_end_date=params.end_date,
-                )
+                if row:
+                    return DOBPipelineStats(
+                        total_records_processed=row.total_records,
+                        records_with_existing_dob=row.with_existing_dob,
+                        records_failed_conversion=row.failed_conversion,
+                        spoken_attempts=row.spoken_attempts,
+                        dtmf_attempts=row.dtmf_attempts,
+                        query_start_date=params.start_date,
+                        query_end_date=params.end_date,
+                    )
+                else:
+                    # No data found
+                    return DOBPipelineStats(
+                        total_records_processed=0,
+                        records_with_existing_dob=0,
+                        records_failed_conversion=0,
+                        spoken_attempts=0,
+                        dtmf_attempts=0,
+                        query_start_date=params.start_date,
+                        query_end_date=params.end_date,
+                    )
 
             except Exception as e:
                 logger.error(f"Failed to get data statistics: {e}")

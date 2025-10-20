@@ -5,7 +5,7 @@ API endpoints for managing the DOB training data pipeline.
 """
 
 from datetime import date, datetime
-from typing import List
+from typing import List, Optional, Union
 
 from fastapi import APIRouter, HTTPException
 
@@ -14,6 +14,10 @@ from app.models.dob_pipeline import (
     DOBPipelineRunResponse,
     DOBPipelineStats,
     DOBTrainingRecord,
+    DOBValidationDetailedResponse,
+    DOBValidationResult,
+    DOBValidationSummary,
+    ValidationMatchType,
 )
 from app.services.dob_pipeline_service import dob_pipeline_service
 
@@ -57,7 +61,7 @@ router = APIRouter(prefix="/dob-pipeline", tags=["DOB Pipeline"])
 async def run_dob_pipeline(
     start_date: str,
     end_date: str,
-    max_records: int = None,
+    max_records: Optional[int] = None,  # Added Optional[int]
     batch_size: int = 1000,
 ) -> DOBPipelineStats:
     """
@@ -183,3 +187,112 @@ async def get_pipeline_stats(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get pipeline stats: {str(e)}")
+
+
+# Validation endpoints for Milestone 1.2
+
+
+@router.get("/validate-parser")
+async def validate_parser_batch(
+    limit: int = 100,
+    offset: int = 0,
+    input_type: Optional[str] = None,
+    classification: Optional[str] = None,
+    include_details: bool = False,
+    mismatches_only: bool = False,
+) -> Union[DOBValidationSummary, DOBValidationDetailedResponse]:
+    """
+    Validate DOB parser against a batch of training data.
+
+    Compares parser output with existing system conversions to measure accuracy.
+
+    Args:
+        limit: Number of records to validate (1-1000, default: 100)
+        offset: Pagination offset (default: 0)
+        input_type: Filter by input type ('spoken', 'dtmf', or None for all)
+        classification: Filter by classification (or None for all)
+        include_details: Whether to include detailed results for each record (default: False)
+        mismatches_only: When include_details=True, filter to show only mismatches (default: False)
+
+    Returns:
+        Summary statistics, or detailed response with individual results if include_details=True
+    """
+    try:
+        # Validate parameters
+        if limit < 1 or limit > 1000:
+            raise HTTPException(status_code=400, detail="Limit must be between 1 and 1000")
+        if offset < 0:
+            raise HTTPException(status_code=400, detail="Offset must be non-negative")
+        if input_type and input_type not in ["spoken", "dtmf"]:
+            raise HTTPException(status_code=400, detail="Input type must be 'spoken' or 'dtmf'")
+        if classification and classification not in ["clean", "multiple_attempts", "spoken_candidate", "failure"]:
+            raise HTTPException(status_code=400, detail="Invalid classification value")
+
+        results, summary = await dob_pipeline_service.validate_parser_batch(
+            limit=limit, offset=offset, input_type=input_type, classification=classification
+        )
+
+        if include_details:
+            # Filter results if mismatches_only is True
+            filtered_results = results
+            if mismatches_only:
+                mismatch_types = [
+                    ValidationMatchType.NO_MATCH,
+                    ValidationMatchType.PARSER_FAILURE,
+                    ValidationMatchType.SOURCE_FAILURE,
+                ]
+                filtered_results = [r for r in results if r.match_type in mismatch_types]
+
+            return DOBValidationDetailedResponse(summary=summary, results=filtered_results, mismatches_only=mismatches_only)
+        else:
+            return summary
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Parser validation failed: {str(e)}")
+
+
+@router.get("/validate/{record_hash}")
+async def validate_single_record(record_hash: str) -> DOBValidationResult:
+    """
+    Validate a single training record by its hash.
+
+    Args:
+        record_hash: SHA-256 hash of the training record
+
+    Returns:
+        Detailed validation result for this record
+    """
+    try:
+        return await dob_pipeline_service.validate_single_record(record_hash)
+
+    except Exception as e:
+        if "not found" in str(e).lower():
+            raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Record validation failed: {str(e)}")
+
+
+@router.get("/validation-results/{record_hash}")
+async def get_validation_result(record_hash: str) -> DOBValidationResult:
+    """
+    Get stored validation result for a specific record.
+
+    Note: Currently this is the same as /validate/{record_hash} since
+    results aren't persisted yet. This endpoint is for future expansion.
+
+    Args:
+        record_hash: SHA-256 hash of the training record
+
+    Returns:
+        Stored validation result for this record
+    """
+    # For now, just run validation on-demand
+    # In the future, this could return cached results
+    try:
+        return await dob_pipeline_service.validate_single_record(record_hash)
+
+    except Exception as e:
+        if "not found" in str(e).lower():
+            raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to get validation result: {str(e)}")
